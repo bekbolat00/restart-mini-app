@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ReStart Clinic</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            background: linear-gradient(160deg, #eef2ff 0%, #e8eeff 45%, #dde6ff 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding-bottom: 110px;
+            min-height: 100vh;
+        }
+
+        /* Scrollbar hide */
+        .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* Glass morphism utility */
+        .glass {
+            background: rgba(255, 255, 255, 0.58);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1.5px solid rgba(255, 255, 255, 0.78);
+        }
+
+        /* Banner carousel */
+        .banner-scroll {
+            display: flex;
+            gap: 14px;
+            overflow-x: auto;
+            padding: 4px 4px 14px;
+        }
+        .banner-card {
+            flex: 0 0 auto;
+            width: 272px;
+            height: 158px;
+            border-radius: 28px;
+            padding: 22px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .banner-card:active { transform: scale(0.97); }
+
+        /* Direction card */
+        .dir-card { transition: transform 0.18s ease; cursor: pointer; }
+        .dir-card:active { transform: scale(0.95); }
+
+        /* Floating action button */
+        .fab-btn {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 28px rgba(37, 99, 235, 0.52);
+            transform: translateY(-18px);
+            flex-shrink: 0;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .fab-btn:active {
+            transform: translateY(-18px) scale(0.92);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.38);
+        }
+        .fab-btn.open {
+            background: linear-gradient(145deg, #64748b, #475569);
+            box-shadow: 0 8px 28px rgba(71, 85, 105, 0.4);
+        }
+
+        /* Date strip */
+        .date-strip {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 4px 2px 8px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .date-strip::-webkit-scrollbar { display: none; }
+        .date-card {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 68px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.55);
+            border: 1.5px solid rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(8px);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .date-card:active { transform: scale(0.95); }
+        .date-card .day-name {
+            font-size: 11px; font-weight: 500; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+        }
+        .date-card .day-num { font-size: 20px; font-weight: 700; color: #1e293b; line-height: 1; }
+        .date-card .dot { width: 5px; height: 5px; border-radius: 50%; background: #e2e8f0; margin-top: 5px; }
+        .date-card.active {
+            background: #2563eb; border-color: #2563eb;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        }
+        .date-card.active .day-name { color: rgba(255,255,255,0.7); }
+        .date-card.active .day-num  { color: #fff; }
+        .date-card.active .dot      { background: rgba(255,255,255,0.5); }
+        .date-card.today .day-num   { color: #2563eb; }
+        .date-card.today .dot       { background: #2563eb; }
+
+        /* Time slot buttons */
+        .time-slot {
+            flex: 1;
+            padding: 10px 6px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.55);
+            border: 1.5px solid rgba(255,255,255,0.7);
+            backdrop-filter: blur(8px);
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .time-slot:active { transform: scale(0.95); }
+        .time-slot.selected {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+        }
+
+        /* Doctor photo placeholder */
+        .doc-photo {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+            flex-shrink: 0;
+            overflow: hidden;
+            border: 2.5px solid rgba(255,255,255,0.9);
+            box-shadow: 0 4px 14px rgba(37,99,235,0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Page transitions */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* Booking panel slide-up */
+        #booking-panel {
+            display: none;
+        }
+        #booking-panel.visible {
+            display: flex;
+        }
+        .booking-sheet {
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        #booking-panel.visible .booking-sheet {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+    <!-- ===========================
+         ГЛАВНАЯ СТРАНИЦА
+    =========================== -->
+    <div id="page-home" class="page active">
+        <main class="px-5 max-w-md mx-auto">
+
+            <!-- HEADER -->
+            <header class="flex justify-between items-center pt-7 pb-5">
+                <div>
+                    <p class="text-sm text-slate-400 font-medium mb-0.5">Добрый день,</p>
+                    <h1 id="userName" class="text-[26px] font-bold text-slate-900 leading-tight tracking-tight">Пациент</h1>
+                </div>
+                <div class="relative">
+                    <button class="w-12 h-12 rounded-2xl flex items-center justify-center
+                                   bg-white/60 backdrop-blur-xl border border-white/80
+                                   shadow-md shadow-blue-100/60 active:scale-95 transition-transform">
+                        <svg class="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M15 17h5l-1.405-1.405A2.032 2.032 0
+                                     0118 14.158V11a6 6 0 10-12 0v3.159c0
+                                     .538-.214 1.055-.595 1.436L4 17h5m6
+                                     0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                        </svg>
+                    </button>
+                    <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500
+                                 border-2 border-white rounded-full"></span>
+                </div>
+            </header>
+
+            <!-- PROMO BANNER CAROUSEL -->
+            <section class="mb-7">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-[15px] font-semibold text-slate-700">Актуальное</h2>
+                    <span class="text-xs text-blue-500 font-semibold">Все →</span>
+                </div>
+
+                <div class="banner-scroll no-scrollbar -mx-1 px-1">
+
+                    <!-- Карточка 1: Кистевая реабилитация -->
+                    <div class="banner-card"
+                         style="background: linear-gradient(140deg, #1d4ed8 0%, #3b82f6 65%, #60a5fa 100%);">
+                        <!-- Фоновое фото (подставьте src при наличии) -->
+                        <img src="" alt=""
+                             class="absolute inset-0 w-full h-full object-cover opacity-0"
+                             style="border-radius: 28px;"
+                             onerror="this.style.opacity='0'">
+                        <!-- Градиентное затемнение снизу -->
+                        <div class="absolute inset-0 rounded-[28px]"
+                             style="background: linear-gradient(to top, rgba(0,0,0,0.62) 0%, transparent 55%);"></div>
+                        <!-- Декоративные круги -->
+                        <div class="absolute -top-8 -right-8 w-36 h-36 rounded-full"
+                             style="background: rgba(255,255,255,0.09);"></div>
+                        <div class="absolute -bottom-6 -left-4 w-24 h-24 rounded-full"
+                             style="background: rgba(255,255,255,0.06);"></div>
+                        <div class="absolute top-0 left-0 right-0 h-px"
+                             style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);"></div>
+
+                        <div class="relative z-10 h-full flex flex-col justify-between">
+                            <span class="inline-flex items-center gap-1.5 bg-white/20 text-white text-[11px]
+                                         font-medium px-3 py-1 rounded-full backdrop-blur-sm w-fit">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 inline-block"></span>
+                                Реабилитация
+                            </span>
+                            <div>
+                                <h3 class="text-white text-[20px] font-bold leading-snug mb-1">
+                                    Кистевая<br>реабилитация
+                                </h3>
+                                <p class="text-blue-100 text-xs leading-relaxed">
+                                    Восстановление после травм кисти и запястья
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Карточка 2: Индивидуальные программы -->
+                    <div class="banner-card"
+                         style="background: linear-gradient(140deg, #0f4c81 0%, #1e6fad 60%, #3b97d3 100%);">
+                        <!-- Фоновое фото (подставьте src при наличии) -->
+                        <img src="" alt=""
+                             class="absolute inset-0 w-full h-full object-cover opacity-0"
+                             style="border-radius: 28px;"
+                             onerror="this.style.opacity='0'">
+                        <!-- Градиентное затемнение снизу -->
+                        <div class="absolute inset-0 rounded-[28px]"
+                             style="background: linear-gradient(to top, rgba(0,0,0,0.60) 0%, transparent 55%);"></div>
+                        <div class="absolute -top-6 -right-6 w-32 h-32 rounded-full"
+                             style="background: rgba(255,255,255,0.08);"></div>
+                        <div class="absolute -bottom-8 left-4 w-28 h-28 rounded-full"
+                             style="background: rgba(255,255,255,0.05);"></div>
+                        <div class="absolute top-0 left-0 right-0 h-px"
+                             style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);"></div>
+
+                        <div class="relative z-10 h-full flex flex-col justify-between">
+                            <span class="inline-flex items-center gap-1.5 bg-white/20 text-white text-[11px]
+                                         font-medium px-3 py-1 rounded-full backdrop-blur-sm w-fit">
+                                <span class="w-1.5 h-1.5 rounded-full bg-yellow-300 inline-block"></span>
+                                Программы
+                            </span>
+                            <div>
+                                <h3 class="text-white text-[20px] font-bold leading-snug mb-1">
+                                    Индивидуальные<br>программы
+                                </h3>
+                                <p class="text-blue-100 text-xs leading-relaxed">
+                                    Персональный план лечения для каждого пациента
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Карточка 3: Спортивная медицина -->
+                    <div class="banner-card"
+                         style="background: linear-gradient(140deg, #1e3a5f 0%, #2d6a9f 60%, #4a90c4 100%);">
+                        <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full"
+                             style="background: rgba(255,255,255,0.07);"></div>
+                        <div class="absolute top-0 left-0 right-0 h-px"
+                             style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);"></div>
+
+                        <div class="relative z-10 h-full flex flex-col justify-between">
+                            <span class="inline-flex items-center gap-1.5 bg-white/20 text-white text-[11px]
+                                         font-medium px-3 py-1 rounded-full backdrop-blur-sm w-fit">
+                                <span class="w-1.5 h-1.5 rounded-full bg-orange-300 inline-block"></span>
+                                Спорт
+                            </span>
+                            <div>
+                                <h3 class="text-white text-[20px] font-bold leading-snug mb-1">
+                                    Спортивная<br>травматология
+                                </h3>
+                                <p class="text-blue-100 text-xs leading-relaxed">
+                                    Диагностика и лечение спортивных травм
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- DIRECTIONS GRID -->
+            <section class="mb-7">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-[15px] font-semibold text-slate-700">Направления</h2>
+                    <span class="text-xs text-blue-500 font-semibold">Все →</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+
+                    <!-- Травматология -->
+                    <div class="dir-card glass rounded-3xl p-5 shadow-sm">
+                        <div class="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center mb-3.5
+                                    shadow-sm shadow-blue-100">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955
+                                         11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824
+                                         10.29 9 11.622 5.176-1.332 9-6.03 9-11.622
+                                         0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <p class="text-[13px] font-semibold text-slate-800 leading-snug">Травма-<br>тология</p>
+                        <p class="text-[11px] text-slate-400 mt-1">12 специалистов</p>
+                    </div>
+
+                    <!-- Ортопедия -->
+                    <div class="dir-card glass rounded-3xl p-5 shadow-sm">
+                        <div class="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3.5
+                                    shadow-sm shadow-indigo-100">
+                            <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <p class="text-[13px] font-semibold text-slate-800 leading-snug">Ортопедия</p>
+                        <p class="text-[11px] text-slate-400 mt-1">8 специалистов</p>
+                    </div>
+
+                    <!-- Хирургия кисти -->
+                    <div class="dir-card glass rounded-3xl p-5 shadow-sm">
+                        <div class="w-11 h-11 rounded-2xl bg-sky-50 flex items-center justify-center mb-3.5
+                                    shadow-sm shadow-sky-100">
+                            <svg class="w-5 h-5 text-sky-600" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0
+                                         00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5
+                                         1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"/>
+                            </svg>
+                        </div>
+                        <p class="text-[13px] font-semibold text-slate-800 leading-snug">Хирургия<br>кисти</p>
+                        <p class="text-[11px] text-slate-400 mt-1">5 специалистов</p>
+                    </div>
+
+                    <!-- Спортивная медицина -->
+                    <div class="dir-card glass rounded-3xl p-5 shadow-sm">
+                        <div class="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center mb-3.5
+                                    shadow-sm shadow-blue-100">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <p class="text-[13px] font-semibold text-slate-800 leading-snug">Спортивная<br>медицина</p>
+                        <p class="text-[11px] text-slate-400 mt-1">9 специалистов</p>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- QUICK BOOKING CARD -->
+            <section class="mb-4">
+                <h2 class="text-[15px] font-semibold text-slate-700 mb-3">Быстрая запись</h2>
+                <div class="glass rounded-3xl p-5 shadow-sm">
+
+                    <!-- Врач -->
+                    <div class="flex items-center gap-4 mb-5">
+                        <!-- Фото врача (круглый плейсхолдер) -->
+                        <div class="doc-photo">
+                            <svg class="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <!-- Инфо -->
+                        <div class="flex-1 min-w-0">
+                            <span class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600
+                                         text-[10px] font-semibold px-2 py-0.5 rounded-full mb-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                                Дежурный
+                            </span>
+                            <h3 class="text-[15px] font-bold text-slate-900 leading-tight">Дежурный травматолог</h3>
+                            <div class="flex items-center gap-1 mt-0.5">
+                                <span class="text-[13px]">⭐</span>
+                                <span class="text-[13px] font-bold text-slate-800">4.9</span>
+                                <span class="text-[11px] text-slate-400 ml-0.5">• Травматология</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Горизонтальная лента дат -->
+                    <div class="date-strip no-scrollbar mb-4" id="quickDateStrip"></div>
+
+                    <!-- Слоты времени -->
+                    <div class="flex gap-2 mb-5" id="timeSlots">
+                        <button class="time-slot selected" data-time="10:00">10:00</button>
+                        <button class="time-slot" data-time="11:30">11:30</button>
+                        <button class="time-slot" data-time="14:00">14:00</button>
+                    </div>
+
+                    <button id="openBookingBtn"
+                            class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
+                                   py-3.5 rounded-2xl transition-all shadow-sm shadow-blue-200 active:scale-[0.98]">
+                        Записаться
+                    </button>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+
+    <!-- ===========================
+         СТРАНИЦА ЗАПИСЕЙ
+    =========================== -->
+    <div id="page-records" class="page">
+        <main class="px-5 max-w-md mx-auto">
+            <header class="pt-7 pb-5">
+                <h1 class="text-[26px] font-bold text-slate-900 tracking-tight">Мои записи</h1>
+                <p class="text-sm text-slate-400 mt-1">История и предстоящие визиты</p>
+            </header>
+            <div class="glass rounded-3xl p-10 text-center shadow-sm">
+                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-blue-300" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0
+                                 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <p class="text-slate-500 text-sm font-medium">Нет предстоящих записей</p>
+                <p class="text-slate-400 text-xs mt-1.5">Нажмите&nbsp;<strong class="text-blue-400">+</strong>&nbsp;чтобы записаться</p>
+            </div>
+        </main>
+    </div>
+
+
+    <!-- ===========================
+         ПАНЕЛЬ ЗАПИСИ (скрыта по умолчанию)
+    =========================== -->
+    <div id="booking-panel" class="fixed inset-0 z-40 flex flex-col justify-end">
+        <div id="bookingBackdrop"
+             class="absolute inset-0 bg-black/30 backdrop-blur-sm"
+             style="opacity:0; transition: opacity 0.3s ease;"></div>
+
+        <div class="booking-sheet relative bg-white rounded-t-[32px] px-5 pt-4 pb-10 shadow-2xl z-50 max-w-md mx-auto w-full">
+            <!-- Drag handle -->
+            <div class="w-10 h-1.5 bg-slate-200 rounded-full mx-auto mb-5"></div>
+
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">Выберите дату</h2>
+                    <span id="selectedMonthYear" class="text-xs text-slate-400 font-medium mt-0.5 block"></span>
+                </div>
+                <button onclick="closeBookingPanel()"
+                        class="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400
+                               hover:bg-slate-200 transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="date-strip no-scrollbar" id="dateStrip"></div>
+
+            <button id="confirmBooking"
+                    class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
+                           py-3.5 rounded-2xl mt-5 shadow-sm shadow-blue-200 active:scale-[0.98] transition-all">
+                Подтвердить запись
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ===========================
+         FLOATING NAV BAR (5 items)
+    =========================== -->
+    <nav class="fixed bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none">
+        <div class="bg-white/88 backdrop-blur-2xl border border-white/80 rounded-full
+                    flex items-center pointer-events-auto"
+             style="padding: 10px 22px;
+                    gap: 0;
+                    box-shadow: 0 10px 40px rgba(99,120,210,0.22), 0 2px 8px rgba(99,120,210,0.10);">
+
+            <!-- Главная -->
+            <button id="btn-home" onclick="showPage('home')"
+                    class="flex flex-col items-center gap-0.5 px-4">
+                <svg id="home-icon" class="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                <span id="home-label" class="text-[10px] font-semibold text-blue-600">Главная</span>
+            </button>
+
+            <!-- Диагностика -->
+            <button id="btn-diag" onclick="showPage('diag')"
+                    class="flex flex-col items-center gap-0.5 px-4">
+                <svg id="diag-icon" class="w-6 h-6 text-slate-300" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                <span id="diag-label" class="text-[10px] font-semibold text-slate-400">Диагностика</span>
+            </button>
+
+            <!-- FAB (+) — центральная кнопка -->
+            <div class="px-2">
+                <button id="btn-fab" onclick="toggleBookingPanel()" class="fab-btn">
+                    <svg id="fab-plus" class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <svg id="fab-close" class="w-7 h-7 text-white hidden" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Чаты -->
+            <button id="btn-chats" onclick="showPage('chats')"
+                    class="flex flex-col items-center gap-0.5 px-4">
+                <svg id="chats-icon" class="w-6 h-6 text-slate-300" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03
+                             8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512
+                             15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                <span id="chats-label" class="text-[10px] font-semibold text-slate-400">Чаты</span>
+            </button>
+
+            <!-- Профиль -->
+            <button id="btn-profile" onclick="showPage('profile')"
+                    class="flex flex-col items-center gap-0.5 px-4">
+                <svg id="profile-icon" class="w-6 h-6 text-slate-300" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655
+                             6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9
+                             0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="profile-label" class="text-[10px] font-semibold text-slate-400">Профиль</span>
+            </button>
+
+        </div>
+    </nav>
+
+
+    <script>
+        // ── Telegram init ──────────────────────────────────────────────
+        const tg = window.Telegram?.WebApp;
+        if (tg) tg.expand();
+
+        const userNameEl = document.getElementById('userName');
+        if (tg?.initDataUnsafe?.user) {
+            userNameEl.innerText = tg.initDataUnsafe.user.first_name;
+        }
+
+        // ── Page navigation (5 tabs) ───────────────────────────────────
+        let currentPage = 'home';
+
+        const NAV_TABS = [
+            { id: 'home',    icon: 'home-icon',    label: 'home-label',    filled: true  },
+            { id: 'diag',    icon: 'diag-icon',    label: 'diag-label',    filled: false },
+            { id: 'chats',   icon: 'chats-icon',   label: 'chats-label',   filled: false },
+            { id: 'profile', icon: 'profile-icon', label: 'profile-label', filled: false },
+        ];
+
+        function showPage(page) {
+            if (currentPage === page) return;
+            currentPage = page;
+
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const target = document.getElementById('page-' + page);
+            if (target) target.classList.add('active');
+
+            NAV_TABS.forEach(tab => {
+                const active = tab.id === page;
+                const iconEl  = document.getElementById(tab.icon);
+                const labelEl = document.getElementById(tab.label);
+                if (!iconEl || !labelEl) return;
+                iconEl.className  = `w-6 h-6 ${active ? 'text-blue-600' : 'text-slate-300'}`;
+                labelEl.className = `text-[10px] font-semibold ${active ? 'text-blue-600' : 'text-slate-400'}`;
+                if (!tab.filled) {
+                    iconEl.setAttribute('fill', active ? 'currentColor' : 'none');
+                    iconEl.setAttribute('stroke', active ? 'none' : 'currentColor');
+                }
+            });
+        }
+
+        // ── Booking panel ──────────────────────────────────────────────
+        let bookingOpen = false;
+
+        function openBookingPanel() {
+            bookingOpen = true;
+            const panel    = document.getElementById('booking-panel');
+            const backdrop = document.getElementById('bookingBackdrop');
+            const fab      = document.getElementById('btn-fab');
+
+            panel.classList.add('visible');
+            requestAnimationFrame(() => { backdrop.style.opacity = '1'; });
+
+            document.getElementById('fab-plus').classList.add('hidden');
+            document.getElementById('fab-close').classList.remove('hidden');
+            fab.classList.add('open');
+
+            buildModalStrip();
+        }
+
+        function closeBookingPanel() {
+            bookingOpen = false;
+            const panel    = document.getElementById('booking-panel');
+            const backdrop = document.getElementById('bookingBackdrop');
+            const fab      = document.getElementById('btn-fab');
+
+            backdrop.style.opacity = '0';
+            panel.querySelector('.booking-sheet').style.transform = 'translateY(100%)';
+
+            setTimeout(() => {
+                panel.classList.remove('visible');
+                panel.querySelector('.booking-sheet').style.transform = '';
+            }, 350);
+
+            document.getElementById('fab-plus').classList.remove('hidden');
+            document.getElementById('fab-close').classList.add('hidden');
+            fab.classList.remove('open');
+        }
+
+        function toggleBookingPanel() {
+            bookingOpen ? closeBookingPanel() : openBookingPanel();
+        }
+
+        document.getElementById('bookingBackdrop').addEventListener('click', closeBookingPanel);
+        document.getElementById('openBookingBtn').addEventListener('click', openBookingPanel);
+        document.getElementById('confirmBooking').addEventListener('click', () => {
+            closeBookingPanel();
+        });
+
+        // ── Shared date state ──────────────────────────────────────────
+        const DAY_NAMES   = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+        const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                             'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let selectedDate = today;
+
+        // ── Quick date strip (main page) ───────────────────────────────
+        const quickStrip = document.getElementById('quickDateStrip');
+
+        function buildQuickStrip() {
+            quickStrip.innerHTML = '';
+            for (let i = 0; i < 14; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const card = createDateCard(d, quickStrip, () => {
+                    selectedDate = d;
+                    refreshStrip(quickStrip);
+                });
+                quickStrip.appendChild(card);
+            }
+            quickStrip.scrollLeft = 0;
+        }
+
+        // ── Modal date strip (booking panel) ───────────────────────────
+        const modalStrip = document.getElementById('dateStrip');
+        const monthLabel = document.getElementById('selectedMonthYear');
+
+        function buildModalStrip() {
+            modalStrip.innerHTML = '';
+            for (let i = 0; i < 14; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const card = createDateCard(d, modalStrip, () => {
+                    selectedDate = d;
+                    refreshStrip(modalStrip);
+                    updateMonthLabel();
+                });
+                modalStrip.appendChild(card);
+            }
+            updateMonthLabel();
+            modalStrip.scrollLeft = 0;
+        }
+
+        function createDateCard(d, parentStrip, onClick) {
+            const card = document.createElement('div');
+            card.className = 'date-card';
+            if (d.getTime() === today.getTime()) card.classList.add('today');
+            if (d.getTime() === selectedDate.getTime()) card.classList.add('active');
+            card.innerHTML = `
+                <span class="day-name">${DAY_NAMES[d.getDay()]}</span>
+                <span class="day-num">${d.getDate()}</span>
+                <span class="dot"></span>
+            `;
+            card.addEventListener('click', () => {
+                selectedDate = d;
+                refreshStrip(parentStrip);
+                if (onClick) onClick();
+            });
+            return card;
+        }
+
+        function refreshStrip(stripEl) {
+            stripEl.querySelectorAll('.date-card').forEach((card, i) => {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                card.classList.toggle('active', d.getTime() === selectedDate.getTime());
+                card.classList.toggle('today',
+                    d.getTime() === today.getTime() && d.getTime() !== selectedDate.getTime());
+            });
+        }
+
+        function updateMonthLabel() {
+            monthLabel.textContent =
+                `${MONTH_NAMES[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+        }
+
+        // ── Time slot selection ────────────────────────────────────────
+        let selectedTime = '10:00';
+
+        document.getElementById('timeSlots').addEventListener('click', (e) => {
+            const btn = e.target.closest('.time-slot');
+            if (!btn) return;
+            selectedTime = btn.dataset.time;
+            document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        });
+
+        // ── Init ───────────────────────────────────────────────────────
+        buildQuickStrip();
+    </script>
+</body>
+</html>
