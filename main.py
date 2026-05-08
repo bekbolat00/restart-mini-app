@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -23,7 +24,17 @@ dp.include_router(router)
 # MVP: храним контакты пользователей в памяти { user_id: {phone, first_name, last_name} }
 users_db: dict[int, dict] = {}
 
-app = FastAPI(title="ReStart Clinic Mini App")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    webhook_url = f"{APP_URL}/api/webhook"
+    await bot.set_webhook(webhook_url, drop_pending_updates=True)
+    yield
+    await bot.delete_webhook()
+    await bot.session.close()
+
+
+app = FastAPI(title="ReStart Clinic Mini App", lifespan=lifespan)
 
 
 # ── Telegram bot handlers ──────────────────────────────────────────────────────
@@ -104,4 +115,4 @@ async def book_appointment(data: BookingData):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
