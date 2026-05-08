@@ -1,22 +1,27 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import os
 
 app = FastAPI(title="ReStart Clinic Mini App")
 
-# Раздаем наш HTML файл на главной странице
+
+class BookingData(BaseModel):
+    name: str
+    date: str
+    time: str
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     with open("index.html", "r", encoding="utf-8") as f:
-        html_content = f.read()
-    return html_content
+        return f.read()
 
-# Здесь позже мы добавим роуты для приема данных из Telegram (Webhooks)
+
 @app.post("/api/book")
-async def book_appointment(data: dict):
-    # Сюда Cursor позже напишет логику отправки в amoCRM
-    return {"status": "success", "message": "Заявка принята"}
+async def book_appointment(data: BookingData):
+    print(f"[НОВАЯ ЗАЯВКА] Имя: {data.name} | Дата: {data.date} | Время: {data.time}")
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn

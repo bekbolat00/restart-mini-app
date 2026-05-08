@@ -664,9 +664,55 @@
         }
 
         document.getElementById('bookingBackdrop').addEventListener('click', closeBookingPanel);
-        document.getElementById('openBookingBtn').addEventListener('click', openBookingPanel);
+
         document.getElementById('confirmBooking').addEventListener('click', () => {
             closeBookingPanel();
+        });
+
+        // ── Quick booking submit ───────────────────────────────────────
+        document.getElementById('openBookingBtn').addEventListener('click', async () => {
+            const user = tg?.initDataUnsafe?.user;
+            const userName = user
+                ? (user.first_name + (user.last_name ? ' ' + user.last_name : ''))
+                : 'Гость';
+
+            const dateStr = selectedDate.toLocaleDateString('ru-RU', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            });
+
+            const btn = document.getElementById('openBookingBtn');
+            btn.disabled = true;
+            btn.textContent = 'Отправляем...';
+
+            try {
+                const res = await fetch('/api/book', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: userName,
+                        date: dateStr,
+                        time: selectedTime
+                    })
+                });
+
+                if (!res.ok) throw new Error('Server error ' + res.status);
+
+                if (tg) {
+                    tg.showAlert('Вы успешно записаны!', () => tg.close());
+                } else {
+                    alert('Вы успешно записаны!');
+                }
+            } catch (err) {
+                console.error(err);
+                if (tg) {
+                    tg.showAlert('Ошибка при записи. Попробуйте ещё раз.');
+                } else {
+                    alert('Ошибка при записи. Попробуйте ещё раз.');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Записаться';
+            }
         });
 
         // ── Shared date state ──────────────────────────────────────────
