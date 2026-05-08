@@ -672,6 +672,7 @@
         // ── Quick booking submit ───────────────────────────────────────
         document.getElementById('openBookingBtn').addEventListener('click', async () => {
             const user = tg?.initDataUnsafe?.user;
+            const userId = user?.id ?? Math.floor(Math.random() * 1_000_000);
             const userName = user
                 ? (user.first_name + (user.last_name ? ' ' + user.last_name : ''))
                 : 'Гость';
@@ -689,9 +690,10 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        user_id: userId,
                         name: userName,
                         date: dateStr,
-                        time: selectedTime
+                        time: selectedTime,
                     })
                 });
 
