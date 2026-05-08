@@ -16,7 +16,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "index.html"
+      "dest": "main.py"
     }
   ]
 }
