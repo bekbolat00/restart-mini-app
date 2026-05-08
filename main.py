@@ -5,28 +5,42 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Update, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from supabase import create_client, Client
 
-# Настройка логов для панели Vercel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Берем токены из настроек Vercel (Environment Variables)
-TOKEN = os.getenv("BOT_TOKEN")
-URL = os.getenv("APP_URL", "").strip("/")
+TOKEN        = os.getenv("BOT_TOKEN")
+URL          = os.getenv("APP_URL", "").strip("/")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
-# Инициализация
-bot = Bot(token=TOKEN) if TOKEN else None
+bot: Bot | None = Bot(token=TOKEN) if TOKEN else None
 dp = Dispatcher()
-users_db = {}
+
+supabase: Client | None = (
+    create_client(SUPABASE_URL, SUPABASE_KEY)
+    if SUPABASE_URL and SUPABASE_KEY else None
+)
+
+
+class RegisterData(BaseModel):
+    id: int
+    name: str
+    phone: str
+
 
 class BookingData(BaseModel):
     user_id: int
     name: str
     date: str
     time: str
+
+
+# ── Static ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def index():
@@ -36,36 +50,78 @@ async def index():
     except Exception as e:
         return HTMLResponse(content=f"Error loading index.html: {e}", status_code=500)
 
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "bot_token": bool(TOKEN), "url": URL}
+    return {"status": "ok", "bot_token": bool(TOKEN), "url": URL, "supabase": bool(supabase)}
+
+
+# ── User API ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/check_user")
+async def check_user(user_id: int):
+    if not supabase:
+        return JSONResponse({"exists": False, "error": "Supabase not configured"})
+    try:
+        result = supabase.table("users").select("id").eq("id", user_id).execute()
+        return JSONResponse({"exists": len(result.data) > 0})
+    except Exception as e:
+        logger.error(f"check_user error: {e}")
+        return JSONResponse({"exists": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/register")
+async def register(data: RegisterData):
+    if not supabase:
+        return JSONResponse({"status": "error", "message": "Supabase not configured"}, status_code=500)
+    try:
+        supabase.table("users").upsert({
+            "id": data.id,
+            "name": data.name,
+            "phone": data.phone,
+        }).execute()
+        logger.info(f"REGISTERED: {data.id} | {data.name} | {data.phone}")
+        return JSONResponse({"status": "success"})
+    except Exception as e:
+        logger.error(f"register error: {e}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/book")
+async def book(data: BookingData):
+    phone = "Номер не найден"
+    if supabase:
+        try:
+            result = supabase.table("users").select("phone").eq("id", data.user_id).execute()
+            if result.data:
+                phone = result.data[0].get("phone", phone)
+        except Exception as e:
+            logger.error(f"book lookup error: {e}")
+    logger.info(f"ЗАЯВКА: {data.name} | {phone} | {data.date} | {data.time}")
+    return {"status": "success"}
+
+
+# ── Telegram webhook ──────────────────────────────────────────────────────────
 
 @app.post("/api/webhook")
 async def webhook(request: Request):
-    if not bot: return {"error": "no token"}
+    if not bot:
+        return {"error": "no token"}
     data = await request.json()
     update = Update(**data)
     await dp.feed_update(bot, update)
     return {"ok": True}
 
+
 @dp.message(lambda m: m.text == "/start")
 async def start(m: types.Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📱 Регистрация", request_contact=True)]],
-        resize_keyboard=True, one_time_keyboard=True
-    )
-    await m.answer(f"Привет, {m.from_user.first_name}! 🏥\nДля входа в клинику нажми кнопку ниже:", reply_markup=kb)
-
-@dp.message(lambda m: m.contact is not None)
-async def contact_done(m: types.Message):
-    users_db[m.from_user.id] = m.contact.phone_number
     ikb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🏥 Открыть клинику", web_app=WebAppInfo(url=URL))
+        InlineKeyboardButton(text="🏥 Открыть ReStart", web_app=WebAppInfo(url=URL))
     ]])
-    await m.answer("✅ Готово! Теперь можно записываться:", reply_markup=ikb)
-
-@app.post("/api/book")
-async def book(data: BookingData):
-    phone = users_db.get(data.user_id, "Номер не найден")
-    logger.info(f"ЗАЯВКА: {data.name} | {phone} | {data.date} | {data.time}")
-    return {"status": "success"}
+    await m.answer(
+        f"Привет, {m.from_user.first_name}! 👋\n\n"
+        "Добро пожаловать в *ReStart* — клинику спортивной медицины и реабилитации.\n"
+        "Нажми кнопку ниже, чтобы открыть приложение:",
+        parse_mode="Markdown",
+        reply_markup=ikb,
+    )
