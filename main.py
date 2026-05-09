@@ -17,6 +17,7 @@ TOKEN        = os.getenv("BOT_TOKEN")
 URL          = os.getenv("APP_URL", "").strip("/")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+ADMIN_ID     = os.getenv("ADMIN_ID")
 
 bot: Bot | None = Bot(token=TOKEN) if TOKEN else None
 dp = Dispatcher()
@@ -98,6 +99,20 @@ async def book(data: BookingData):
         except Exception as e:
             logger.error(f"book lookup error: {e}")
     logger.info(f"ЗАЯВКА: {data.name} | {phone} | {data.date} | {data.time}")
+
+    if bot and ADMIN_ID:
+        try:
+            text_message = (
+                "🔔 <b>Новая заявка на прием!</b>\n\n"
+                f"👤 <b>Имя:</b> {data.name}\n"
+                f"📞 <b>Телефон:</b> {phone}\n"
+                f"📅 <b>Дата:</b> {data.date}\n"
+                f"⏰ <b>Время:</b> {data.time}"
+            )
+            await bot.send_message(chat_id=int(ADMIN_ID), text=text_message, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Ошибка отправки уведомления администратору: {e}")
+
     return {"status": "success"}
 
 
