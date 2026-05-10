@@ -116,6 +116,21 @@ async def book(data: BookingData):
     return {"status": "success"}
 
 
+# ── Services API ──────────────────────────────────────────────────────────────
+
+@app.get("/api/services")
+async def get_services():
+    if not supabase:
+        logger.error("get_services: Supabase not configured")
+        return JSONResponse([])
+    try:
+        result = supabase.table("services").select("*").execute()
+        return JSONResponse(result.data if result.data else [])
+    except Exception as e:
+        logger.error(f"get_services error: {e}")
+        return JSONResponse([])
+
+
 # ── Telegram webhook ──────────────────────────────────────────────────────────
 
 @app.post("/api/webhook")
