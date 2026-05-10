@@ -264,6 +264,48 @@
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
         }
+
+        /* ── Specialists screen ───────────────────────────────── */
+        .spec-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            overflow: hidden;
+            border: 2.5px solid rgba(255,255,255,0.9);
+            box-shadow: 0 4px 16px rgba(37,99,235,0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #bfdbfe 0%, #818cf8 100%);
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.5px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.18);
+        }
+        .spec-avatar img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+
+        .spec-card {
+            cursor: default;
+            transition: transform 0.18s ease;
+        }
+
+        .star-filled  { color: #f59e0b; }
+        .star-half    { color: #f59e0b; }
+        .star-empty   { color: #e2e8f0; }
+
+        .spec-select-btn {
+            background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+            box-shadow: 0 4px 14px rgba(37,99,235,0.28);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .spec-select-btn:active {
+            transform: scale(0.97);
+            box-shadow: 0 2px 8px rgba(37,99,235,0.2);
+        }
     </style>
 </head>
 <body class="text-slate-800 antialiased">
@@ -790,6 +832,43 @@
 
 
     <!-- ===========================
+         ЭКРАН СПЕЦИАЛИСТОВ
+    =========================== -->
+    <div id="specialists-screen" class="screen">
+
+        <!-- Sticky header -->
+        <div class="sticky top-0 z-10 px-5 pt-7 pb-4 max-w-md mx-auto"
+             style="background: linear-gradient(160deg, #eef2ff 0%, #e8eeff 50%, #dde6ff 100%);">
+
+            <div class="flex items-center gap-3">
+                <button onclick="closeSpecialistsScreen()"
+                        class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
+                               bg-white/70 backdrop-blur-sm border border-white/80 shadow-sm
+                               active:scale-95 transition-transform">
+                    <svg class="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </button>
+                <div class="min-w-0">
+                    <p class="text-sm text-slate-400 font-medium mb-0.5">Специалисты клиники</p>
+                    <h1 id="specialists-screen-title"
+                        class="text-[22px] font-bold text-slate-900 leading-tight tracking-tight truncate">
+                        Врачи
+                    </h1>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrollable list -->
+        <main class="px-5 pt-3 pb-28 max-w-md mx-auto" id="specialists-list">
+            <!-- populated by JS -->
+        </main>
+
+    </div>
+
+
+    <!-- ===========================
          ПАНЕЛЬ ЗАПИСИ (скрыта по умолчанию)
     =========================== -->
     <div id="booking-panel" class="fixed inset-0 z-40 flex flex-col justify-end">
@@ -954,11 +1033,16 @@
             }
         }
 
-        // ── Clickable direction cards → open services screen ──────────
+        // ── Clickable direction cards ──────────────────────────────────
+        // Ортопедия → экран специалистов; остальные → экран услуг
         document.querySelectorAll('.dir-card').forEach(card => {
             card.addEventListener('click', () => {
                 const direction = card.dataset.direction || 'Услуги';
-                openServicesScreen(direction, 'Выберите услуги');
+                if (direction === 'Ортопедия') {
+                    openSpecialistsScreen(direction);
+                } else {
+                    openServicesScreen(direction, 'Выберите услуги');
+                }
             });
         });
 
@@ -1465,6 +1549,155 @@
             // Open booking panel with selected services stored
             // (selectedServices is available globally for later use)
             openBookingPanel();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //   SPECIALISTS SCREEN
+        // ═══════════════════════════════════════════════════════════════
+
+        let allSpecialists = null;   // cached API response
+
+        function openSpecialistsScreen(direction) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('specialists-screen').classList.add('active');
+            document.getElementById('specialists-screen-title').textContent = direction || 'Специалисты';
+
+            if (allSpecialists === null) {
+                fetchAndRenderSpecialists();
+            } else {
+                renderSpecialistsList(allSpecialists);
+            }
+        }
+
+        function closeSpecialistsScreen() {
+            allSpecialists = null;   // reset cache so next open re-fetches
+            showTab('main');
+        }
+
+        async function fetchAndRenderSpecialists() {
+            const listEl = document.getElementById('specialists-list');
+            listEl.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-16 gap-4">
+                    <div class="spinner"></div>
+                    <p class="text-sm text-slate-400 font-medium">Загружаем специалистов…</p>
+                </div>`;
+            try {
+                const res = await fetch('/api/specialists');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                allSpecialists = await res.json();
+            } catch (e) {
+                console.error('fetchSpecialists error:', e);
+                allSpecialists = [];
+            }
+            renderSpecialistsList(allSpecialists);
+        }
+
+        function renderSpecialistsList(specialists) {
+            const listEl = document.getElementById('specialists-list');
+
+            if (!specialists || specialists.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                            <svg class="w-8 h-8 text-blue-300" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <p class="text-slate-700 text-base font-semibold mb-2">Специалисты не найдены</p>
+                        <p class="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+                            Список врачей пока недоступен. Попробуйте позже.
+                        </p>
+                    </div>`;
+                return;
+            }
+
+            listEl.innerHTML = specialists.map(spec => buildSpecCard(spec)).join('');
+
+            listEl.querySelectorAll('.spec-select-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const specId = btn.dataset.specId;
+                    const spec = (allSpecialists || []).find(s => String(s.id) === String(specId));
+                    if (!spec) return;
+                    openServicesScreen(spec.name, spec.specialty || 'Специалист');
+                });
+            });
+        }
+
+        function buildSpecCard(spec) {
+            const initials  = specInitials(spec.name || '');
+            const avatarHtml = spec.photo_url
+                ? `<div class="spec-avatar"><img src="${escSvc(spec.photo_url)}" alt="${escSvc(spec.name || '')}"></div>`
+                : `<div class="spec-avatar">${escSvc(initials)}</div>`;
+
+            const starsHtml = spec.rating
+                ? `<div class="flex items-center gap-1.5 mt-1.5">
+                       <div class="flex gap-0.5 text-[14px]">${renderSpecStars(spec.rating)}</div>
+                       <span class="text-[12px] font-bold text-slate-700">${Number(spec.rating).toFixed(1)}</span>
+                       ${spec.reviews_count
+                           ? `<span class="text-[11px] text-slate-400">• ${spec.reviews_count} отзывов</span>`
+                           : ''}
+                   </div>`
+                : '';
+
+            const descHtml = spec.description
+                ? `<p class="text-[12px] text-slate-400 mt-1.5 leading-relaxed line-clamp-2">${escSvc(spec.description)}</p>`
+                : '';
+
+            const experienceHtml = spec.experience
+                ? `<span class="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[11px]
+                              font-semibold px-2 py-0.5 rounded-full mt-1.5">
+                       Стаж ${escSvc(String(spec.experience))} лет
+                   </span>`
+                : '';
+
+            return `
+            <div class="spec-card glass rounded-3xl p-4 mb-3 shadow-sm">
+                <div class="flex items-start gap-4">
+                    ${avatarHtml}
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[16px] font-bold text-slate-900 leading-tight">
+                            ${escSvc(spec.name || 'Специалист')}
+                        </p>
+                        <p class="text-[13px] text-slate-400 mt-0.5 font-medium">
+                            ${escSvc(spec.specialty || '')}
+                        </p>
+                        ${starsHtml}
+                        ${experienceHtml}
+                        ${descHtml}
+                    </div>
+                </div>
+                <button class="spec-select-btn w-full mt-4 py-3 rounded-2xl text-white font-semibold text-[14px]"
+                        data-spec-id="${spec.id}">
+                    Выбрать специалиста
+                </button>
+            </div>`;
+        }
+
+        function specInitials(name) {
+            return name.trim().split(/\s+/)
+                .slice(0, 2)
+                .map(w => w[0] || '')
+                .join('')
+                .toUpperCase();
+        }
+
+        function renderSpecStars(rating) {
+            const r = Math.min(5, Math.max(0, Number(rating)));
+            const full = Math.floor(r);
+            const half = r - full >= 0.5 ? 1 : 0;
+            const empty = 5 - full - half;
+            const star = (cls) =>
+                `<svg class="${cls}" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25
+                             L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                 </svg>`;
+            return (
+                star('star-filled').repeat(full) +
+                (half ? star('star-half') : '') +
+                star('star-empty').repeat(empty)
+            );
         }
 
         // ── Utilities ──────────────────────────────────────────────────

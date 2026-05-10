@@ -131,6 +131,21 @@ async def get_services():
         return JSONResponse([])
 
 
+# ── Specialists API ────────────────────────────────────────────────────────────
+
+@app.get("/api/specialists")
+async def get_specialists():
+    if not supabase:
+        logger.error("get_specialists: Supabase not configured")
+        return JSONResponse([])
+    try:
+        result = supabase.table("specialists").select("*").execute()
+        return JSONResponse(result.data if result.data else [])
+    except Exception as e:
+        logger.error(f"get_specialists error: {e}")
+        return JSONResponse([])
+
+
 # ── Telegram webhook ──────────────────────────────────────────────────────────
 
 @app.post("/api/webhook")
