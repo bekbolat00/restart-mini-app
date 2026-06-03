@@ -681,25 +681,70 @@
          ЭКРАН ДИАГНОСТИКИ
     =========================== -->
     <div id="diagnostics-screen" class="screen">
-        <main class="px-5 max-w-md mx-auto">
-            <header class="pt-7 pb-5">
+        <main class="px-5 max-w-md mx-auto pb-6">
+            <header class="pt-7 pb-4">
                 <p class="text-sm text-slate-400 font-medium mb-0.5">Медицинские данные</p>
                 <h1 class="text-[26px] font-bold text-slate-900 tracking-tight">Диагностика</h1>
             </header>
-            <div class="glass rounded-3xl shadow-sm empty-state">
+
+            <!-- Filter chips -->
+            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-3 -mx-1 px-1">
+                <button class="scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 text-white"
+                        data-filter="all" onclick="filterScans('all')"
+                        style="background: linear-gradient(135deg,#1d4ed8,#3b82f6); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                    Все
+                </button>
+                <button class="scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-filter="МРТ" onclick="filterScans('МРТ')">МРТ</button>
+                <button class="scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-filter="Рентген" onclick="filterScans('Рентген')">Рентген</button>
+                <button class="scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-filter="УЗИ" onclick="filterScans('УЗИ')">УЗИ</button>
+                <button class="scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-filter="Анализы" onclick="filterScans('Анализы')">Анализы</button>
+            </div>
+
+            <!-- Upload card -->
+            <button onclick="openScanUploadModal()"
+                    class="w-full glass rounded-3xl p-4 mb-4 flex items-center gap-3 active:scale-[0.98] transition-transform shadow-sm">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                     style="background: linear-gradient(145deg,#2563eb,#3b82f6); box-shadow: 0 4px 12px rgba(37,99,235,0.30);">
+                    <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </div>
+                <div class="text-left flex-1">
+                    <p class="text-slate-900 font-semibold text-[15px]">Добавить снимок</p>
+                    <p class="text-slate-400 text-[12px] mt-0.5">МРТ, рентген, УЗИ или анализы</p>
+                </div>
+                <svg class="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+            </button>
+
+            <!-- Loading spinner -->
+            <div id="scans-loading" class="hidden flex items-center justify-center py-10">
+                <div class="w-8 h-8 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+
+            <!-- Empty state -->
+            <div id="scans-empty" class="glass rounded-3xl shadow-sm empty-state">
                 <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-5">
                     <svg class="w-8 h-8 text-blue-300" fill="none" viewBox="0 0 24 24"
                          stroke="currentColor" stroke-width="1.5">
                         <path stroke-linecap="round" stroke-linejoin="round"
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0
-                                 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828
+                                 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                     </svg>
                 </div>
-                <p class="text-slate-700 text-base font-semibold mb-2">Данных пока нет</p>
+                <p class="text-slate-700 text-base font-semibold mb-2">Снимков пока нет</p>
                 <p class="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
-                    Здесь будут храниться результаты МРТ, рентгена и анализов пациента
+                    Нажмите «Добавить снимок» чтобы загрузить МРТ, рентген или результаты анализов
                 </p>
             </div>
+
+            <!-- Scans 2-column grid -->
+            <div id="scans-grid" class="grid grid-cols-2 gap-3 hidden"></div>
         </main>
     </div>
 
@@ -1124,6 +1169,165 @@
     </nav>
 
 
+    <!-- ===========================
+         UPLOAD SCAN MODAL
+    =========================== -->
+    <div id="scan-upload-modal" class="hidden fixed inset-0 z-50" style="pointer-events: none;">
+        <div id="scan-upload-backdrop"
+             class="absolute inset-0 bg-black/40"
+             style="opacity: 0; transition: opacity 0.35s ease;"
+             onclick="closeScanUploadModal()"></div>
+        <div id="scan-upload-sheet"
+             class="absolute bottom-0 left-0 right-0 max-w-md mx-auto rounded-t-[32px] pt-3 pb-10 px-5 no-scrollbar"
+             style="background: linear-gradient(160deg, #f0f4ff 0%, #e8eeff 100%);
+                    transform: translateY(100%);
+                    transition: transform 0.4s cubic-bezier(0.32,0.72,0,1);
+                    max-height: 92vh; overflow-y: auto;">
+
+            <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-5"></div>
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <p class="text-sm text-slate-400 font-medium">Новый снимок</p>
+                    <h2 class="text-[20px] font-bold text-slate-900">Добавить файл</h2>
+                </div>
+                <button onclick="closeScanUploadModal()"
+                        class="w-9 h-9 rounded-xl flex items-center justify-center
+                               bg-white/70 backdrop-blur-sm border border-white/80 active:scale-95 transition-transform">
+                    <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drop zone / file picker -->
+            <div id="scan-drop-zone"
+                 onclick="document.getElementById('scan-file-input').click()"
+                 class="glass rounded-3xl p-5 text-center mb-4 cursor-pointer active:scale-[0.98] transition-transform"
+                 style="border: 2px dashed rgba(147,197,253,0.7);">
+                <div id="scan-preview-wrap" class="hidden mb-3">
+                    <img id="scan-preview-img" src="" alt=""
+                         class="w-full max-h-44 object-contain rounded-2xl mx-auto"/>
+                    <p id="scan-preview-name" class="text-[12px] text-slate-400 mt-2 truncate px-4"></p>
+                </div>
+                <div id="scan-upload-placeholder">
+                    <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-7 h-7 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828
+                                     0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <p class="text-slate-700 font-semibold text-[14px]">Нажмите чтобы выбрать</p>
+                    <p class="text-slate-400 text-[12px] mt-1">Фото, JPEG, PNG, PDF</p>
+                </div>
+                <input type="file" id="scan-file-input" accept="image/*,.pdf"
+                       class="hidden" onchange="onScanFileSelected(event)"/>
+            </div>
+
+            <!-- Scan type pills -->
+            <p class="text-[13px] font-semibold text-slate-500 mb-2 ml-1">Тип снимка</p>
+            <div class="flex gap-2 mb-4 flex-wrap">
+                <button class="scan-type-btn px-4 py-2 rounded-full text-[13px] font-semibold transition-all active:scale-95 text-white"
+                        data-type="МРТ" onclick="selectScanType('МРТ')"
+                        style="background: linear-gradient(135deg,#1d4ed8,#3b82f6); box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                    МРТ
+                </button>
+                <button class="scan-type-btn px-4 py-2 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-type="Рентген" onclick="selectScanType('Рентген')">Рентген</button>
+                <button class="scan-type-btn px-4 py-2 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-type="УЗИ" onclick="selectScanType('УЗИ')">УЗИ</button>
+                <button class="scan-type-btn px-4 py-2 rounded-full text-[13px] font-semibold transition-all active:scale-95 glass text-slate-500"
+                        data-type="Анализы" onclick="selectScanType('Анализы')">Анализы</button>
+            </div>
+
+            <!-- Body part -->
+            <p class="text-[13px] font-semibold text-slate-500 mb-2 ml-1">Область / часть тела</p>
+            <input id="scan-body-part" type="text" placeholder="Колено, плечо, поясница..."
+                   class="w-full glass rounded-2xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400
+                          outline-none focus:ring-2 focus:ring-blue-200 mb-4"
+                   style="border: 1.5px solid rgba(255,255,255,0.78);"/>
+
+            <!-- Scan date -->
+            <p class="text-[13px] font-semibold text-slate-500 mb-2 ml-1">Дата снимка</p>
+            <input id="scan-date" type="date"
+                   class="w-full glass rounded-2xl px-4 py-3 text-[14px] text-slate-700
+                          outline-none focus:ring-2 focus:ring-blue-200 mb-4"
+                   style="border: 1.5px solid rgba(255,255,255,0.78);"/>
+
+            <!-- Notes -->
+            <p class="text-[13px] font-semibold text-slate-500 mb-2 ml-1">Комментарий (необязательно)</p>
+            <textarea id="scan-notes" rows="2" placeholder="Диагноз, название клиники..."
+                      class="w-full glass rounded-2xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400
+                             outline-none focus:ring-2 focus:ring-blue-200 resize-none mb-5"
+                      style="border: 1.5px solid rgba(255,255,255,0.78);"></textarea>
+
+            <!-- Upload button -->
+            <button id="scan-upload-btn" onclick="submitScanUpload()" disabled
+                    class="w-full text-white font-semibold py-4 rounded-2xl transition-all text-[15px]
+                           active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                    style="background: linear-gradient(135deg,#1d4ed8,#3b82f6);">
+                Загрузить снимок
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ===========================
+         IMAGE VIEWER MODAL
+    =========================== -->
+    <div id="scan-viewer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center"
+         style="background: rgba(0,0,0,0.88);">
+        <div class="absolute inset-0" onclick="closeScanViewer()"></div>
+        <div class="relative w-full max-w-sm mx-5 z-10">
+            <!-- Top bar -->
+            <div class="flex items-start justify-between mb-3 px-1">
+                <div class="flex-1 min-w-0 pr-3">
+                    <span id="viewer-type-badge"
+                          class="inline-block px-3 py-1 rounded-full text-[12px] font-bold text-white mb-1"></span>
+                    <p id="viewer-body-part" class="text-white/80 text-[14px] font-semibold leading-tight truncate"></p>
+                    <p id="viewer-date" class="text-white/50 text-[12px] mt-0.5"></p>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button onclick="deleteScan()"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center active:scale-95 transition-transform"
+                            style="background: rgba(239,68,68,0.20);">
+                        <svg class="w-5 h-5 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5
+                                     4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                    <button onclick="closeScanViewer()"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center active:scale-95 transition-transform"
+                            style="background: rgba(255,255,255,0.10);">
+                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Image / placeholder -->
+            <div id="viewer-img-wrap" class="rounded-3xl overflow-hidden"
+                 style="background: rgba(255,255,255,0.05); min-height: 200px;">
+                <img id="viewer-image" src="" alt=""
+                     class="w-full object-contain max-h-[58vh] rounded-3xl"/>
+                <div id="viewer-no-img"
+                     class="hidden w-full flex items-center justify-center py-14">
+                    <svg class="w-16 h-16 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0
+                                 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+            </div>
+            <!-- Notes -->
+            <p id="viewer-notes" class="text-white/60 text-[13px] text-center mt-3 leading-relaxed px-2"></p>
+        </div>
+    </div>
+
+
     <script>
         // ── Telegram init ──────────────────────────────────────────────
         const tg = window.Telegram?.WebApp;
@@ -1178,6 +1382,9 @@
                     }
                 }
             }
+
+            // Load scans when diagnostics tab opens
+            if (tab === 'diagnostics') loadScans();
         }
 
         // ── Clickable direction cards ──────────────────────────────────
@@ -2134,6 +2341,299 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+
+
+        // ══════════════════════════════════════════════════════════════
+        //   DIAGNOSTICS — MEDICAL SCANS
+        // ══════════════════════════════════════════════════════════════
+
+        let allScans            = [];
+        let currentScanFilter   = 'all';
+        let selectedScanType    = 'МРТ';
+        let selectedScanFile    = null;
+        let viewerCurrentScanId = null;
+
+        const SCAN_TYPE_COLORS = {
+            'МРТ':     { bg: '#f3e8ff', text: '#6d28d9', badge: 'linear-gradient(135deg,#7c3aed,#8b5cf6)' },
+            'Рентген': { bg: '#eff6ff', text: '#1d4ed8', badge: 'linear-gradient(135deg,#1d4ed8,#3b82f6)' },
+            'УЗИ':     { bg: '#ecfeff', text: '#0e7490', badge: 'linear-gradient(135deg,#0891b2,#22d3ee)' },
+            'Анализы': { bg: '#f0fdf4', text: '#047857', badge: 'linear-gradient(135deg,#059669,#34d399)' },
+        };
+
+        async function loadScans() {
+            const user = tg?.initDataUnsafe?.user;
+            const loadEl  = document.getElementById('scans-loading');
+            const emptyEl = document.getElementById('scans-empty');
+            const gridEl  = document.getElementById('scans-grid');
+
+            loadEl.classList.remove('hidden');
+            emptyEl.classList.add('hidden');
+            gridEl.classList.add('hidden');
+
+            if (!user) { loadEl.classList.add('hidden'); emptyEl.classList.remove('hidden'); return; }
+
+            try {
+                const res  = await fetch(`/api/scans?user_id=${user.id}`);
+                const data = await res.json();
+                allScans = data.scans || [];
+            } catch { allScans = []; }
+            finally  { loadEl.classList.add('hidden'); }
+
+            renderScans();
+        }
+
+        function renderScans() {
+            const filtered = currentScanFilter === 'all'
+                ? allScans
+                : allScans.filter(s => s.scan_type === currentScanFilter);
+
+            const gridEl  = document.getElementById('scans-grid');
+            const emptyEl = document.getElementById('scans-empty');
+
+            if (!filtered.length) {
+                gridEl.classList.add('hidden');
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            gridEl.classList.remove('hidden');
+            gridEl.innerHTML = filtered.map(buildScanCard).join('');
+        }
+
+        function buildScanCard(scan) {
+            const tc      = SCAN_TYPE_COLORS[scan.scan_type] || SCAN_TYPE_COLORS['Рентген'];
+            const dateStr = scan.scan_date
+                ? new Date(scan.scan_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                  })
+                : '';
+            const thumbHtml = scan.file_url && !scan.file_url.endsWith('.pdf')
+                ? `<img src="${scan.file_url}" loading="lazy"
+                        class="w-full h-32 object-cover rounded-2xl mb-3"
+                        onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>`
+                : '';
+            const placeholderHtml = `
+                <div style="background:${tc.bg}; display:${scan.file_url && !scan.file_url.endsWith('.pdf') ? 'none' : 'flex'};"
+                     class="w-full h-32 rounded-2xl mb-3 items-center justify-center">
+                    <svg style="color:${tc.text};" class="w-10 h-10" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="1.4">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0
+                                 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2
+                                 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>`;
+            return `
+                <div class="glass rounded-3xl p-3 cursor-pointer active:scale-[0.97] transition-transform shadow-sm"
+                     onclick="openScanViewer('${scan.id}')">
+                    ${thumbHtml}${placeholderHtml}
+                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white mb-1.5"
+                          style="background:${tc.badge};">${scan.scan_type || '—'}</span>
+                    <p class="text-slate-800 font-semibold text-[13px] leading-tight truncate">
+                        ${scan.body_part || 'Без описания'}
+                    </p>
+                    <p class="text-slate-400 text-[11px] mt-0.5">${dateStr}</p>
+                </div>`;
+        }
+
+        function filterScans(type) {
+            currentScanFilter = type;
+            haptic?.impactOccurred('light');
+            document.querySelectorAll('.scan-filter-btn').forEach(btn => {
+                const active = btn.dataset.filter === type;
+                btn.className = `scan-filter-btn flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all active:scale-95 ${active ? 'text-white' : 'glass text-slate-500'}`;
+                btn.style.background = active ? 'linear-gradient(135deg,#1d4ed8,#3b82f6)' : '';
+                btn.style.boxShadow  = active ? '0 4px 12px rgba(37,99,235,0.3)'           : '';
+            });
+            renderScans();
+        }
+
+        // ── Upload modal ────────────────────────────────────────────
+
+        function openScanUploadModal() {
+            haptic?.impactOccurred('medium');
+            selectedScanFile = null;
+            document.getElementById('scan-file-input').value = '';
+            document.getElementById('scan-preview-wrap').classList.add('hidden');
+            document.getElementById('scan-upload-placeholder').classList.remove('hidden');
+            document.getElementById('scan-body-part').value = '';
+            document.getElementById('scan-notes').value     = '';
+            document.getElementById('scan-date').value      = new Date().toISOString().split('T')[0];
+            selectScanType('МРТ');
+            updateScanUploadBtn();
+
+            const modal    = document.getElementById('scan-upload-modal');
+            const backdrop = document.getElementById('scan-upload-backdrop');
+            const sheet    = document.getElementById('scan-upload-sheet');
+            modal.classList.remove('hidden');
+            modal.style.pointerEvents = 'auto';
+            requestAnimationFrame(() => {
+                backdrop.style.opacity = '1';
+                sheet.style.transform  = 'translateY(0)';
+            });
+        }
+
+        function closeScanUploadModal() {
+            const modal    = document.getElementById('scan-upload-modal');
+            const backdrop = document.getElementById('scan-upload-backdrop');
+            const sheet    = document.getElementById('scan-upload-sheet');
+            backdrop.style.opacity = '0';
+            sheet.style.transform  = 'translateY(100%)';
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.style.pointerEvents = 'none';
+            }, 380);
+        }
+
+        function onScanFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            selectedScanFile = file;
+
+            document.getElementById('scan-preview-name').textContent = file.name;
+
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('scan-preview-img').src = e.target.result;
+                    document.getElementById('scan-preview-wrap').classList.remove('hidden');
+                    document.getElementById('scan-upload-placeholder').classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                document.getElementById('scan-preview-img').src = '';
+                document.getElementById('scan-preview-wrap').classList.remove('hidden');
+                document.getElementById('scan-upload-placeholder').classList.add('hidden');
+            }
+            updateScanUploadBtn();
+        }
+
+        function selectScanType(type) {
+            selectedScanType = type;
+            document.querySelectorAll('.scan-type-btn').forEach(btn => {
+                const active = btn.dataset.type === type;
+                btn.className = `scan-type-btn px-4 py-2 rounded-full text-[13px] font-semibold transition-all active:scale-95 ${active ? 'text-white' : 'glass text-slate-500'}`;
+                btn.style.background = active ? 'linear-gradient(135deg,#1d4ed8,#3b82f6)' : '';
+                btn.style.boxShadow  = active ? '0 4px 12px rgba(37,99,235,0.3)'           : '';
+            });
+        }
+
+        function updateScanUploadBtn() {
+            document.getElementById('scan-upload-btn').disabled = !selectedScanFile;
+        }
+
+        async function submitScanUpload() {
+            const user = tg?.initDataUnsafe?.user;
+            if (!user || !selectedScanFile) return;
+
+            const btn = document.getElementById('scan-upload-btn');
+            btn.disabled    = true;
+            btn.textContent = 'Загружаем...';
+            haptic?.impactOccurred('medium');
+
+            try {
+                const form = new FormData();
+                form.append('file',      selectedScanFile);
+                form.append('user_id',   user.id);
+                form.append('scan_type', selectedScanType);
+                form.append('body_part', document.getElementById('scan-body-part').value.trim());
+                form.append('scan_date', document.getElementById('scan-date').value);
+                form.append('notes',     document.getElementById('scan-notes').value.trim());
+
+                const res  = await fetch('/api/upload_scan', { method: 'POST', body: form });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    haptic?.notificationOccurred('success');
+                    closeScanUploadModal();
+                    await loadScans();
+                } else {
+                    haptic?.notificationOccurred('error');
+                    const msg = data.message || 'Ошибка загрузки';
+                    if (tg) tg.showAlert(msg); else alert(msg);
+                }
+            } catch {
+                haptic?.notificationOccurred('error');
+                if (tg) tg.showAlert('Ошибка сети. Попробуйте снова.'); else alert('Ошибка сети.');
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Загрузить снимок';
+            }
+        }
+
+        // ── Image viewer ────────────────────────────────────────────
+
+        function openScanViewer(scanId) {
+            const scan = allScans.find(s => String(s.id) === String(scanId));
+            if (!scan) return;
+            viewerCurrentScanId = scanId;
+            haptic?.impactOccurred('light');
+
+            const tc = SCAN_TYPE_COLORS[scan.scan_type] || SCAN_TYPE_COLORS['Рентген'];
+            const badge = document.getElementById('viewer-type-badge');
+            badge.textContent    = scan.scan_type || '';
+            badge.style.background = tc.badge;
+
+            document.getElementById('viewer-body-part').textContent =
+                scan.body_part || 'Снимок';
+
+            const dateStr = scan.scan_date
+                ? new Date(scan.scan_date + 'T00:00:00').toLocaleDateString('ru-RU', {
+                    day: 'numeric', month: 'long', year: 'numeric'
+                  })
+                : '';
+            document.getElementById('viewer-date').textContent  = dateStr;
+            document.getElementById('viewer-notes').textContent = scan.notes || '';
+
+            const imgEl  = document.getElementById('viewer-image');
+            const noImg  = document.getElementById('viewer-no-img');
+            if (scan.file_url && !scan.file_url.endsWith('.pdf')) {
+                imgEl.src = scan.file_url;
+                imgEl.classList.remove('hidden');
+                noImg.classList.add('hidden');
+            } else {
+                imgEl.classList.add('hidden');
+                noImg.classList.remove('hidden');
+            }
+
+            const modal = document.getElementById('scan-viewer-modal');
+            modal.classList.remove('hidden');
+        }
+
+        function closeScanViewer() {
+            haptic?.impactOccurred('light');
+            document.getElementById('scan-viewer-modal').classList.add('hidden');
+            viewerCurrentScanId = null;
+        }
+
+        async function deleteScan() {
+            const user = tg?.initDataUnsafe?.user;
+            if (!user || !viewerCurrentScanId) return;
+            const doDelete = async () => {
+                try {
+                    const res  = await fetch(`/api/scans/${viewerCurrentScanId}?user_id=${user.id}`,
+                                            { method: 'DELETE' });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        haptic?.notificationOccurred('success');
+                        closeScanViewer();
+                        await loadScans();
+                    } else {
+                        haptic?.notificationOccurred('error');
+                        if (tg) tg.showAlert(data.message || 'Ошибка удаления');
+                    }
+                } catch {
+                    if (tg) tg.showAlert('Ошибка сети.');
+                }
+            };
+            if (tg) {
+                tg.showConfirm('Удалить этот снимок?', confirmed => { if (confirmed) doDelete(); });
+            } else {
+                if (confirm('Удалить этот снимок?')) doDelete();
+            }
+        }
+
     </script>
 </body>
 </html>

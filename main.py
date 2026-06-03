@@ -3,7 +3,8 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from fastapi import FastAPI, Request
+import uuid
+from fastapi import FastAPI, Request, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -323,6 +324,114 @@ async def send_reminders(request: Request):
 
     logger.info(f"Reminders dispatched: {sent}")
     return JSONResponse({"status": "ok", "sent": sent})
+
+
+# ── Medical Scans API ─────────────────────────────────────────────────────────
+# Required Supabase setup:
+#   1. Storage bucket: "medical-scans" (public)
+#   2. Table: scans(
+#        id uuid default gen_random_uuid() primary key,
+#        user_id bigint not null,
+#        scan_type text,          -- МРТ | Рентген | УЗИ | Анализы
+#        body_part text,
+#        scan_date date,
+#        notes text,
+#        file_path text,
+#        file_url text,
+#        file_name text,
+#        created_at timestamptz default now()
+#      )
+
+@app.post("/api/upload_scan")
+async def upload_scan(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    scan_type: str = Form(...),
+    body_part: str = Form(""),
+    scan_date: str = Form(""),
+    notes: str = Form(""),
+):
+    if not supabase:
+        return JSONResponse({"status": "error", "message": "Supabase not configured"}, status_code=500)
+    try:
+        content  = await file.read()
+        ext      = (file.filename or "scan").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+        allowed  = {"jpg", "jpeg", "png", "gif", "webp", "pdf", "bmp", "heic"}
+        if ext not in allowed:
+            return JSONResponse({"status": "error", "message": "Недопустимый формат файла"}, status_code=400)
+
+        file_path = f"{user_id}/{uuid.uuid4()}.{ext}"
+        content_type = file.content_type or "image/jpeg"
+
+        supabase.storage.from_("medical-scans").upload(
+            file_path, content, {"content-type": content_type}
+        )
+        public_url = supabase.storage.from_("medical-scans").get_public_url(file_path)
+
+        row = {
+            "user_id":   user_id,
+            "scan_type": scan_type,
+            "body_part": body_part,
+            "scan_date": scan_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "notes":     notes,
+            "file_path": file_path,
+            "file_url":  public_url,
+            "file_name": file.filename or "scan",
+        }
+        result = supabase.table("scans").insert(row).execute()
+        logger.info(f"SCAN UPLOADED: user={user_id} type={scan_type} path={file_path}")
+        return JSONResponse({"status": "success", "scan": result.data[0] if result.data else row})
+    except Exception as e:
+        logger.error(f"upload_scan error: {e}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.get("/api/scans")
+async def get_scans(user_id: int):
+    if not supabase:
+        return JSONResponse({"scans": []})
+    try:
+        result = (
+            supabase.table("scans")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return JSONResponse({"scans": result.data or []})
+    except Exception as e:
+        logger.error(f"get_scans error: {e}")
+        return JSONResponse({"scans": []})
+
+
+@app.delete("/api/scans/{scan_id}")
+async def delete_scan(scan_id: str, user_id: int):
+    if not supabase:
+        return JSONResponse({"status": "error", "message": "Supabase not configured"}, status_code=500)
+    try:
+        result = (
+            supabase.table("scans")
+            .select("file_path")
+            .eq("id", scan_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not result.data:
+            return JSONResponse({"status": "error", "message": "Снимок не найден"}, status_code=404)
+
+        file_path = result.data[0].get("file_path")
+        if file_path:
+            try:
+                supabase.storage.from_("medical-scans").remove([file_path])
+            except Exception as se:
+                logger.warning(f"Storage remove warning: {se}")
+
+        supabase.table("scans").delete().eq("id", scan_id).eq("user_id", user_id).execute()
+        logger.info(f"SCAN DELETED: id={scan_id} user={user_id}")
+        return JSONResponse({"status": "success"})
+    except Exception as e:
+        logger.error(f"delete_scan error: {e}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 # ── Telegram webhook ──────────────────────────────────────────────────────────

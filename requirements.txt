@@ -3,3 +3,4 @@ uvicorn
 aiogram
 python-dotenv
 supabase
+python-multipart
