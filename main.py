@@ -1,17 +1,31 @@
 import os
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
 from aiogram.types import Update, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if bot and URL:
+        webhook_url = f"{URL}/api/webhook"
+        await bot.set_webhook(webhook_url)
+        logger.info(f"Webhook установлен: {webhook_url}")
+    yield
+    if bot:
+        await bot.session.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 TOKEN        = os.getenv("BOT_TOKEN")
 URL          = os.getenv("APP_URL", "").strip("/")
@@ -148,6 +162,24 @@ async def get_specialists():
 
 # ── Telegram webhook ──────────────────────────────────────────────────────────
 
+@app.get("/api/set_webhook")
+async def set_webhook():
+    if not bot or not URL:
+        return JSONResponse({"error": "bot or URL not configured"}, status_code=500)
+    webhook_url = f"{URL}/api/webhook"
+    await bot.set_webhook(webhook_url)
+    info = await bot.get_webhook_info()
+    return JSONResponse({"status": "ok", "webhook_url": info.url, "pending_updates": info.pending_update_count})
+
+
+@app.get("/api/webhook_info")
+async def webhook_info():
+    if not bot:
+        return JSONResponse({"error": "bot not configured"}, status_code=500)
+    info = await bot.get_webhook_info()
+    return JSONResponse({"url": info.url, "pending_updates": info.pending_update_count, "last_error": info.last_error_message})
+
+
 @app.post("/api/webhook")
 async def webhook(request: Request):
     if not bot:
@@ -158,7 +190,7 @@ async def webhook(request: Request):
     return {"ok": True}
 
 
-@dp.message(lambda m: m.text == "/start")
+@dp.message(Command("start"))
 async def start(m: types.Message):
     ikb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🏥 Открыть ReStart", web_app=WebAppInfo(url=URL))
@@ -170,3 +202,17 @@ async def start(m: types.Message):
         parse_mode="Markdown",
         reply_markup=ikb,
     )
+
+    if ADMIN_ID:
+        try:
+            user = m.from_user
+            username = f"@{user.username}" if user.username else "—"
+            notify_text = (
+                "👤 <b>Новый пользователь запустил бота!</b>\n\n"
+                f"🆔 <b>ID:</b> <code>{user.id}</code>\n"
+                f"📛 <b>Имя:</b> {user.full_name}\n"
+                f"🔗 <b>Username:</b> {username}"
+            )
+            await bot.send_message(chat_id=int(ADMIN_ID), text=notify_text, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Ошибка уведомления при /start: {e}")
