@@ -10,5 +10,11 @@
       "src": "/(.*)",
       "dest": "main.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/send_reminders",
+      "schedule": "*/30 * * * *"
+    }
   ]
 }
