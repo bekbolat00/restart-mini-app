@@ -120,8 +120,9 @@
 
         /* Time slot buttons */
         .time-slot {
-            flex: 1;
-            padding: 10px 6px;
+            flex: 0 0 auto;
+            min-width: 68px;
+            padding: 10px 12px;
             border-radius: 14px;
             background: rgba(255,255,255,0.55);
             border: 1.5px solid rgba(255,255,255,0.7);
@@ -656,7 +657,13 @@
                     <div class="date-strip no-scrollbar mb-4" id="quickDateStrip"></div>
 
                     <!-- Слоты времени (генерируются JS с учётом времени и занятости) -->
-                    <div class="flex gap-2 mb-5" id="timeSlots"></div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Выберите время</span>
+                        <span class="text-[10px] text-slate-300 flex items-center gap-1">
+                            <span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-200/60 border border-slate-200"></span>занято
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-5" id="timeSlots"></div>
 
                     <button id="openBookingBtn"
                             class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
