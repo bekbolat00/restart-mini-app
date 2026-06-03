@@ -67,11 +67,17 @@ class BookingData(BaseModel):
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.get("/")
 async def index():
     try:
         path = Path(__file__).parent / "index.html"
-        return HTMLResponse(content=path.read_text(encoding="utf-8"))
+        return HTMLResponse(content=path.read_text(encoding="utf-8"), headers=NO_CACHE_HEADERS)
     except Exception as e:
         return HTMLResponse(content=f"Error loading index.html: {e}", status_code=500)
 
@@ -116,6 +122,36 @@ async def register(data: RegisterData):
 async def book(data: BookingData):
     phone     = "Номер не найден"
     specialist = data.specialist or "Дежурный травматолог"
+
+    # ── Reject past-time bookings ────────────────────────────────────
+    if data.appointment_iso:
+        try:
+            appt_dt = datetime.fromisoformat(data.appointment_iso.replace("Z", "+00:00"))
+            if appt_dt < datetime.now(timezone.utc):
+                return JSONResponse(
+                    {"status": "error", "message": "Нельзя записаться на прошедшее время."},
+                    status_code=400
+                )
+        except ValueError:
+            pass
+
+    # ── Check slot conflict ──────────────────────────────────────────
+    if supabase:
+        try:
+            conflict = (
+                supabase.table("bookings")
+                .select("id")
+                .eq("date", data.date)
+                .eq("time", data.time)
+                .execute()
+            )
+            if conflict.data:
+                return JSONResponse(
+                    {"status": "error", "message": "Это время уже занято. Пожалуйста, выберите другой слот."},
+                    status_code=409
+                )
+        except Exception as e:
+            logger.error(f"book conflict check error: {e}")
 
     if supabase:
         try:
@@ -180,6 +216,22 @@ async def book(data: BookingData):
             logger.error(f"Ошибка отправки подтверждения пациенту: {e}")
 
     return {"status": "success"}
+
+
+# ── Slots API ─────────────────────────────────────────────────────
+
+@app.get("/api/available_slots")
+async def available_slots(date: str):
+    """Returns taken time slots for a given date string (same format as stored in bookings.date)."""
+    if not supabase:
+        return JSONResponse({"taken": []})
+    try:
+        result = supabase.table("bookings").select("time").eq("date", date).execute()
+        taken = list({row["time"] for row in result.data or []})
+        return JSONResponse({"taken": taken})
+    except Exception as e:
+        logger.error(f"available_slots error: {e}")
+        return JSONResponse({"taken": []})
 
 
 # ── Services API ──────────────────────────────────────────────────────────────

@@ -141,6 +141,27 @@
             color: #fff;
             box-shadow: 0 4px 14px rgba(37,99,235,0.35);
         }
+        .time-slot.past {
+            opacity: 0.28;
+            cursor: not-allowed;
+            text-decoration: line-through;
+            pointer-events: none;
+        }
+        .time-slot.taken {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+            background: rgba(248,250,252,0.6);
+            border-color: rgba(226,232,240,0.7);
+            color: #94a3b8;
+        }
+        .time-slot.loading {
+            animation: pulse-slot 1s ease-in-out infinite;
+        }
+        @keyframes pulse-slot {
+            0%, 100% { opacity: 0.5; }
+            50%       { opacity: 0.2; }
+        }
 
         /* Doctor photo placeholder */
         .doc-photo {
@@ -634,12 +655,8 @@
                     <!-- Горизонтальная лента дат -->
                     <div class="date-strip no-scrollbar mb-4" id="quickDateStrip"></div>
 
-                    <!-- Слоты времени -->
-                    <div class="flex gap-2 mb-5" id="timeSlots">
-                        <button class="time-slot selected" data-time="10:00">10:00</button>
-                        <button class="time-slot" data-time="11:30">11:30</button>
-                        <button class="time-slot" data-time="14:00">14:00</button>
-                    </div>
+                    <!-- Слоты времени (генерируются JS с учётом времени и занятости) -->
+                    <div class="flex gap-2 mb-5" id="timeSlots"></div>
 
                     <button id="openBookingBtn"
                             class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
@@ -1262,6 +1279,17 @@
                     })
                 });
 
+                if (res.status === 409 || res.status === 400) {
+                    const errData = await res.json().catch(() => ({}));
+                    haptic?.notificationOccurred('error');
+                    await refreshTimeSlots(); // show taken/past state immediately
+                    const msg = errData.message || 'Это время недоступно. Выберите другой слот.';
+                    if (tg) tg.showAlert(msg); else alert(msg);
+                    btn.disabled    = false;
+                    btn.textContent = 'Записаться';
+                    return;
+                }
+
                 if (!res.ok) throw new Error('Server error ' + res.status);
 
                 haptic?.notificationOccurred('success');
@@ -1275,8 +1303,8 @@
                     alert('Ошибка при записи. Попробуйте ещё раз.');
                 }
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Записаться';
+                btn.disabled    = false;
+                btn.textContent = selectedTime ? 'Записаться' : 'Нет доступных слотов на этот день';
             }
         });
 
@@ -1300,6 +1328,7 @@
                 const card = createDateCard(d, quickStrip, () => {
                     selectedDate = d;
                     refreshStrip(quickStrip);
+                    refreshTimeSlots(); // refresh slots when date changes
                 });
                 quickStrip.appendChild(card);
             }
@@ -1360,17 +1389,89 @@
                 `${MONTH_NAMES[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
         }
 
-        // ── Time slot selection ────────────────────────────────────────
-        let selectedTime = '10:00';
+        // ── Time slots ─────────────────────────────────────────────────
+        const ALL_SLOTS = ['09:00', '10:00', '11:00', '11:30', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+        let selectedTime = '';
 
+        // Click delegation — works for dynamically rendered buttons
         document.getElementById('timeSlots').addEventListener('click', (e) => {
             const btn = e.target.closest('.time-slot');
-            if (!btn) return;
+            if (!btn || btn.disabled) return;
             selectedTime = btn.dataset.time;
-            document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
+            document.getElementById('timeSlots').querySelectorAll('.time-slot')
+                .forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             haptic?.impactOccurred('light');
         });
+
+        // Render slots for the currently selected date, disabling past & taken ones
+        async function refreshTimeSlots() {
+            const slotsEl = document.getElementById('timeSlots');
+            const bookBtn = document.getElementById('openBookingBtn');
+
+            // Show loading skeleton
+            slotsEl.innerHTML = ALL_SLOTS.map(t =>
+                `<button class="time-slot loading" disabled>${t}</button>`
+            ).join('');
+
+            const now     = new Date();
+            const isToday = selectedDate.toDateString() === now.toDateString();
+
+            // Fetch taken slots from backend
+            const dateStr = selectedDate.toLocaleDateString('ru-RU', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            });
+            let takenSlots = [];
+            try {
+                const res  = await fetch('/api/available_slots?date=' + encodeURIComponent(dateStr));
+                const data = await res.json();
+                takenSlots = data.taken || [];
+            } catch (e) {
+                console.warn('Could not fetch slot availability:', e);
+            }
+
+            // Render real buttons
+            slotsEl.innerHTML = '';
+            let firstAvailable = null;
+
+            ALL_SLOTS.forEach(time => {
+                const [h, m] = time.split(':').map(Number);
+                const slotDate = new Date(selectedDate);
+                slotDate.setHours(h, m, 0, 0);
+                const isPast  = isToday && slotDate <= now;
+                const isTaken = takenSlots.includes(time);
+
+                const btn = document.createElement('button');
+                btn.className    = 'time-slot';
+                btn.dataset.time = time;
+
+                if (isPast) {
+                    btn.classList.add('past');
+                    btn.disabled  = true;
+                    btn.textContent = time;
+                } else if (isTaken) {
+                    btn.classList.add('taken');
+                    btn.disabled  = true;
+                    btn.innerHTML = `${time}&thinsp;<span style="font-size:9px;opacity:.7">✕</span>`;
+                } else {
+                    btn.textContent = time;
+                    if (!firstAvailable) {
+                        firstAvailable = time;
+                        btn.classList.add('selected');
+                    }
+                }
+                slotsEl.appendChild(btn);
+            });
+
+            // Update selectedTime to first available (or empty if none)
+            selectedTime = firstAvailable || '';
+
+            // Disable/update the booking button
+            if (bookBtn) {
+                bookBtn.disabled    = !firstAvailable;
+                bookBtn.textContent = firstAvailable ? 'Записаться' : 'Нет доступных слотов на этот день';
+            }
+        }
 
         // ── Registration screen ────────────────────────────────────────
         function hideRegScreen() {
@@ -1416,6 +1517,7 @@
         // window.onload — check if user is already registered
         window.onload = async function () {
             buildQuickStrip();
+            refreshTimeSlots(); // render slots for today on first load
 
             const userId = tg?.initDataUnsafe?.user?.id;
             if (!userId) {
