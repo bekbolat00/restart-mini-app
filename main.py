@@ -17,12 +17,18 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if bot and URL:
-        webhook_url = f"{URL}/api/webhook"
-        await bot.set_webhook(webhook_url)
-        logger.info(f"Webhook установлен: {webhook_url}")
+        try:
+            webhook_url = f"{URL}/api/webhook"
+            await bot.set_webhook(webhook_url)
+            logger.info(f"Webhook установлен: {webhook_url}")
+        except Exception as e:
+            logger.error(f"Ошибка установки webhook: {e}")
     yield
-    if bot:
-        await bot.session.close()
+    try:
+        if bot:
+            await bot.session.close()
+    except Exception:
+        pass
 
 
 app = FastAPI(lifespan=lifespan)
