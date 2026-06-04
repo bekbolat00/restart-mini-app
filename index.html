@@ -2381,11 +2381,16 @@
             const dateStr = `${yyyy}-${mm}-${dd}`;
 
             if (_platform() === 'ios') {
-                // iOS: use webcal:// scheme — iOS routes it directly to the
-                // Calendar app without opening Safari first.
+                // webcal:// is routed by iOS directly to Calendar (no Safari dialog).
+                // Must go through tg.openLink — Telegram's WKWebView blocks
+                // window.location.href for non-http(s) schemes.
                 const icsPath = `/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
                 const webcalUrl = `webcal://restart-mini-app.vercel.app${icsPath}`;
-                window.location.href = webcalUrl;
+                if (tg?.openLink) {
+                    tg.openLink(webcalUrl);
+                } else {
+                    window.location.href = webcalUrl;
+                }
                 return;
             }
 
