@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import uuid
 from fastapi import FastAPI, Request, File, UploadFile, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel
 from typing import Optional
 from aiogram import Bot, Dispatcher, types
@@ -87,6 +87,59 @@ async def index():
 @app.get("/health")
 async def health():
     return {"status": "ok", "bot_token": bool(TOKEN), "url": URL, "supabase": bool(supabase)}
+
+
+@app.get("/api/ics")
+async def get_ics(date: str, time: str, specialist: str = "Дежурный травматолог"):
+    """
+    Serve an .ics file so iOS Safari shows the native «Add to Calendar» sheet.
+    date: YYYY-MM-DD, time: HH:MM
+    """
+    try:
+        from datetime import datetime
+        dt_str = f"{date} {time}"
+        start  = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        end    = start + timedelta(hours=1)
+
+        def fmt(d: datetime) -> str:
+            return d.strftime("%Y%m%dT%H%M%S")
+
+        uid = f"restart-{date}-{time.replace(':', '')}@restart.kz"
+        lines = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//ReStart Clinic//RU",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{fmt(datetime.utcnow())}",
+            f"DTSTART:{fmt(start)}",
+            f"DTEND:{fmt(end)}",
+            f"SUMMARY:Консультация в клинике ReStart",
+            f"DESCRIPTION:Консультация: {specialist}\\nКлиника спортивной медицины ReStart",
+            "LOCATION:Клиника ReStart\\, Алматы",
+            "STATUS:CONFIRMED",
+            "BEGIN:VALARM",
+            "TRIGGER:-PT2H",
+            "ACTION:DISPLAY",
+            "DESCRIPTION:Напоминание: консультация в клинике ReStart через 2 часа",
+            "END:VALARM",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+        ics_content = "\r\n".join(lines)
+        return Response(
+            content=ics_content,
+            media_type="text/calendar; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="restart-consultation.ics"',
+                "Cache-Control": "no-cache",
+            },
+        )
+    except Exception as e:
+        logger.error(f"get_ics error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=400)
 
 
 # ── User API ──────────────────────────────────────────────────────────────────

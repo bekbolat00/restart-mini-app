@@ -2369,12 +2369,35 @@
         }
 
         function downloadICS() {
-            const times = _apptTimes();
+            if (!_lastBookingDate || !_lastBookingTime) return;
+
+            haptic?.impactOccurred('medium');
+
+            // Format date as YYYY-MM-DD from the stored Date object
+            const d    = _lastBookingDate instanceof Date ? _lastBookingDate : new Date(_lastBookingDate);
+            const yyyy = d.getFullYear();
+            const mm   = String(d.getMonth() + 1).padStart(2, '0');
+            const dd   = String(d.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+
+            if (_platform() === 'ios') {
+                // iOS: open the real HTTPS URL → Safari detects text/calendar
+                // and shows the native «Add to Calendar» system sheet.
+                // Telegram's openLink opens it in the external browser (Safari).
+                const icsUrl = `https://restart-mini-app.vercel.app/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
+                if (tg?.openLink) {
+                    tg.openLink(icsUrl);
+                } else {
+                    window.open(icsUrl, '_blank');
+                }
+                return;
+            }
+
+            // Android / desktop: generate and download blob as before
+            const times  = _apptTimes();
             if (!times) return;
             const fmtICS = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
             const uid    = `restart-${Date.now()}@restart.kz`;
-
-            // VALARM triggers a native calendar reminder 2 hours before
             const ics = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
@@ -2399,23 +2422,15 @@
                 'END:VCALENDAR',
             ].join('\r\n');
 
-            haptic?.impactOccurred('medium');
-            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+            const blob   = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
             const objUrl = URL.createObjectURL(blob);
-
-            // On iOS, window.open triggers the "Add to Calendar" sheet natively
-            if (_platform() === 'ios') {
-                window.open(objUrl, '_blank');
-                setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
-            } else {
-                const a    = document.createElement('a');
-                a.href     = objUrl;
-                a.download = 'restart-consultation.ics';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-            }
+            const a      = document.createElement('a');
+            a.href       = objUrl;
+            a.download   = 'restart-consultation.ics';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
         }
 
 
