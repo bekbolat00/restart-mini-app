@@ -2381,15 +2381,13 @@
             const dateStr = `${yyyy}-${mm}-${dd}`;
 
             if (_platform() === 'ios') {
-                // webcal:// is routed by iOS directly to Calendar (no Safari dialog).
-                // Must go through tg.openLink — Telegram's WKWebView blocks
-                // window.location.href for non-http(s) schemes.
-                const icsPath = `/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
-                const webcalUrl = `webcal://restart-mini-app.vercel.app${icsPath}`;
+                // iOS inside Telegram WebView: only http(s) schemes are allowed.
+                // Open the https .ics link → iOS shows the native «Add event» sheet.
+                const icsUrl = `https://restart-mini-app.vercel.app/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
                 if (tg?.openLink) {
-                    tg.openLink(webcalUrl);
+                    tg.openLink(icsUrl);
                 } else {
-                    window.location.href = webcalUrl;
+                    window.open(icsUrl, '_blank');
                 }
                 return;
             }
