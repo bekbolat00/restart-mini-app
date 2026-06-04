@@ -2381,15 +2381,11 @@
             const dateStr = `${yyyy}-${mm}-${dd}`;
 
             if (_platform() === 'ios') {
-                // iOS: open the real HTTPS URL → Safari detects text/calendar
-                // and shows the native «Add to Calendar» system sheet.
-                // Telegram's openLink opens it in the external browser (Safari).
-                const icsUrl = `https://restart-mini-app.vercel.app/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
-                if (tg?.openLink) {
-                    tg.openLink(icsUrl);
-                } else {
-                    window.open(icsUrl, '_blank');
-                }
+                // iOS: use webcal:// scheme — iOS routes it directly to the
+                // Calendar app without opening Safari first.
+                const icsPath = `/api/ics?date=${dateStr}&time=${encodeURIComponent(_lastBookingTime)}`;
+                const webcalUrl = `webcal://restart-mini-app.vercel.app${icsPath}`;
+                window.location.href = webcalUrl;
                 return;
             }
 

@@ -133,8 +133,9 @@ async def get_ics(date: str, time: str, specialist: str = "Дежурный тр
             content=ics_content,
             media_type="text/calendar; charset=utf-8",
             headers={
-                "Content-Disposition": 'attachment; filename="restart-consultation.ics"',
+                "Content-Disposition": 'inline; filename="restart-consultation.ics"',
                 "Cache-Control": "no-cache",
+                "Access-Control-Allow-Origin": "*",
             },
         )
     except Exception as e:
