@@ -118,45 +118,71 @@
         .date-card.today .day-num   { color: #2563eb; }
         .date-card.today .dot       { background: #2563eb; }
 
-        /* Time slot buttons */
+        /* Time slot buttons — 2-column grid layout */
         .time-slot {
-            flex: 0 0 auto;
-            min-width: 68px;
-            padding: 10px 12px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.55);
-            border: 1.5px solid rgba(255,255,255,0.7);
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.65);
+            border: 1.5px solid rgba(255,255,255,0.75);
             backdrop-filter: blur(8px);
-            font-size: 13px;
-            font-weight: 600;
-            color: #334155;
-            text-align: center;
+            -webkit-backdrop-filter: blur(8px);
+            text-align: left;
             cursor: pointer;
             transition: all 0.2s ease;
             user-select: none;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
         }
-        .time-slot:active { transform: scale(0.95); }
+        .time-slot:active { transform: scale(0.97); }
+        .slot-time {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1;
+        }
+        .slot-sub {
+            font-size: 11px;
+            font-weight: 500;
+            color: #94a3b8;
+            line-height: 1;
+        }
         .time-slot.selected {
             background: #2563eb;
             border-color: #2563eb;
-            color: #fff;
             box-shadow: 0 4px 14px rgba(37,99,235,0.35);
         }
-        .time-slot.past {
-            opacity: 0.28;
-            cursor: not-allowed;
-            text-decoration: line-through;
+        .time-slot.selected .slot-time { color: #fff; }
+        .time-slot.selected .slot-sub  { color: rgba(255,255,255,0.72); }
+        .time-slot.booked-by-user {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-color: #34d399;
+            cursor: default;
             pointer-events: none;
         }
+        .time-slot.booked-by-user .slot-time { color: #065f46; }
+        .time-slot.booked-by-user .slot-sub  { color: #059669; font-weight: 600; }
+        .time-slot.past {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+            background: rgba(248,250,252,0.55);
+            border-color: rgba(226,232,240,0.6);
+        }
+        .time-slot.past .slot-time { color: #94a3b8; }
+        .time-slot.past .slot-sub  { color: #cbd5e1; }
         .time-slot.taken {
             opacity: 0.45;
             cursor: not-allowed;
             pointer-events: none;
             background: rgba(248,250,252,0.6);
             border-color: rgba(226,232,240,0.7);
-            color: #94a3b8;
         }
+        .time-slot.taken .slot-time { color: #94a3b8; }
+        .time-slot.taken .slot-sub  { color: #cbd5e1; }
         .time-slot.loading {
+            height: 58px;
             animation: pulse-slot 1s ease-in-out infinite;
         }
         @keyframes pulse-slot {
@@ -663,7 +689,7 @@
                             <span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-200/60 border border-slate-200"></span>занято
                         </span>
                     </div>
-                    <div class="flex flex-wrap gap-2 mb-5" id="timeSlots"></div>
+                    <div class="grid grid-cols-2 gap-3 mb-5" id="timeSlots"></div>
 
                     <button id="openBookingBtn"
                             class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
@@ -1069,7 +1095,7 @@
                     <line x1="8" y1="2" x2="8" y2="6"/>
                     <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                Добавить в Google Calendar
+                Добавить консультацию в календарь
             </button>
 
             <button id="cal-btn-ics" onclick="downloadICS()"
@@ -1079,9 +1105,12 @@
                            border: 1.5px solid rgba(147,197,253,0.7);">
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                Скачать .ics (Apple / Outlook)
+                Apple Календарь (.ics)
             </button>
 
             <button onclick="closeBookingSuccessModal()"
@@ -1606,6 +1635,15 @@
         // ── Time slots ─────────────────────────────────────────────────
         const ALL_SLOTS = ['09:00', '10:00', '11:00', '11:30', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
         let selectedTime = '';
+        let _slotRefreshTimer = null;
+
+        // Russian plural: место / места / мест
+        function _pluralMest(n) {
+            const mod10 = n % 10, mod100 = n % 100;
+            if (mod10 === 1 && mod100 !== 11) return 'место';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'места';
+            return 'мест';
+        }
 
         // Click delegation — works for dynamically rendered buttons
         document.getElementById('timeSlots').addEventListener('click', (e) => {
@@ -1618,57 +1656,92 @@
             haptic?.impactOccurred('light');
         });
 
-        // Render slots for the currently selected date, disabling past & taken ones
+        // Auto-refresh every 60 s when today is selected (keeps past slots in sync)
+        function _startSlotAutoRefresh() {
+            if (_slotRefreshTimer) clearInterval(_slotRefreshTimer);
+            _slotRefreshTimer = null;
+            if (selectedDate.toDateString() === new Date().toDateString()) {
+                _slotRefreshTimer = setInterval(refreshTimeSlots, 60_000);
+            }
+        }
+
+        // Render slots for the currently selected date
         async function refreshTimeSlots() {
             const slotsEl = document.getElementById('timeSlots');
             const bookBtn = document.getElementById('openBookingBtn');
 
-            // Show loading skeleton
-            slotsEl.innerHTML = ALL_SLOTS.map(t =>
-                `<button class="time-slot loading" disabled>${t}</button>`
+            // Loading skeleton (2-column grid cells)
+            slotsEl.innerHTML = ALL_SLOTS.map(() =>
+                `<button class="time-slot loading" disabled></button>`
             ).join('');
 
             const now     = new Date();
             const isToday = selectedDate.toDateString() === now.toDateString();
 
-            // Fetch taken slots from backend
+            const userId = tg?.initDataUnsafe?.user?.id ?? null;
             const dateStr = selectedDate.toLocaleDateString('ru-RU', {
                 day: 'numeric', month: 'long', year: 'numeric'
             });
-            let takenSlots = [];
+
+            let takenSlots  = [];
+            let slotCounts  = {};
+            let slotCap     = 1;
+            let userBooked  = null;
             try {
-                const res  = await fetch('/api/available_slots?date=' + encodeURIComponent(dateStr));
+                let url = '/api/available_slots?date=' + encodeURIComponent(dateStr);
+                if (userId) url += '&user_id=' + userId;
+                const res  = await fetch(url);
                 const data = await res.json();
-                takenSlots = data.taken || [];
+                takenSlots = data.taken    || [];
+                slotCounts = data.counts   || {};
+                slotCap    = data.capacity || 1;
+                userBooked = data.user_booked || null;
             } catch (e) {
                 console.warn('Could not fetch slot availability:', e);
             }
 
-            // Render real buttons
             slotsEl.innerHTML = '';
             let firstAvailable = null;
 
             ALL_SLOTS.forEach(time => {
-                const [h, m] = time.split(':').map(Number);
-                const slotDate = new Date(selectedDate);
-                slotDate.setHours(h, m, 0, 0);
-                const isPast  = isToday && slotDate <= now;
-                const isTaken = takenSlots.includes(time);
+                const [h, m]  = time.split(':').map(Number);
+                const slotDt  = new Date(selectedDate);
+                slotDt.setHours(h, m, 0, 0);
+                const isPast       = isToday && slotDt <= now;
+                const isTaken      = takenSlots.includes(time);
+                const isUserBooked = userBooked === time;
+                const count        = slotCounts[time] || 0;
+                const remaining    = slotCap - count;
 
                 const btn = document.createElement('button');
                 btn.className    = 'time-slot';
                 btn.dataset.time = time;
 
-                if (isPast) {
+                if (isUserBooked) {
+                    btn.classList.add('booked-by-user');
+                    btn.disabled  = true;
+                    btn.innerHTML = `
+                        <span class="slot-time">${time}</span>
+                        <span class="slot-sub">✓ Вы записаны</span>`;
+                } else if (isPast) {
                     btn.classList.add('past');
                     btn.disabled  = true;
-                    btn.textContent = time;
+                    btn.innerHTML = `
+                        <span class="slot-time">${time}</span>
+                        <span class="slot-sub">Завершено</span>`;
                 } else if (isTaken) {
                     btn.classList.add('taken');
                     btn.disabled  = true;
-                    btn.innerHTML = `${time}&thinsp;<span style="font-size:9px;opacity:.7">✕</span>`;
+                    btn.innerHTML = `
+                        <span class="slot-time">${time}</span>
+                        <span class="slot-sub">Занято</span>`;
                 } else {
-                    btn.textContent = time;
+                    const subText = slotCap > 1
+                        ? `Осталось ${remaining}&thinsp;${_pluralMest(remaining)}`
+                        : 'Свободно';
+                    btn.innerHTML = `
+                        <span class="slot-time">${time}</span>
+                        <span class="slot-sub">${subText}</span>`;
                     if (!firstAvailable) {
                         firstAvailable = time;
                         btn.classList.add('selected');
@@ -1677,14 +1750,14 @@
                 slotsEl.appendChild(btn);
             });
 
-            // Update selectedTime to first available (or empty if none)
             selectedTime = firstAvailable || '';
-
-            // Disable/update the booking button
             if (bookBtn) {
                 bookBtn.disabled    = !firstAvailable;
                 bookBtn.textContent = firstAvailable ? 'Записаться' : 'Нет доступных слотов на этот день';
             }
+
+            // (Re)start auto-refresh timer for today
+            _startSlotAutoRefresh();
         }
 
         // ── Registration screen ────────────────────────────────────────
@@ -2243,7 +2316,7 @@
             return 'other';
         }
 
-        // Update calendar button labels based on platform (no DOM reordering needed)
+        // Update calendar button labels and order based on platform
         function _sortCalendarButtons() {
             const platform = _platform();
             const gcalBtn  = document.getElementById('cal-btn-google');
@@ -2257,20 +2330,17 @@
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>`;
-            const dlIcon = `<svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>`;
 
             if (platform === 'ios') {
-                // On iOS .ics opens Apple Calendar natively — make it the primary CTA
-                icsBtn.innerHTML  = calIcon + ' Добавить в Apple Calendar';
-                gcalBtn.innerHTML = calIcon + ' Открыть в Google Calendar';
-                // Swap visual weight: ics becomes primary (gradient), gcal becomes secondary
+                // iOS: Apple Calendar (.ics) opens natively — make it the only/primary CTA
+                icsBtn.innerHTML  = calIcon + ' Добавить консультацию в календарь';
+                gcalBtn.innerHTML = calIcon + ' Google Календарь';
+                // ics becomes primary (gradient blue)
                 icsBtn.style.background  = 'linear-gradient(135deg,#1d4ed8 0%,#3b82f6 100%)';
                 icsBtn.style.boxShadow   = '0 4px 16px rgba(37,99,235,0.3)';
                 icsBtn.style.color       = 'white';
                 icsBtn.style.border      = 'none';
+                // gcal becomes secondary
                 gcalBtn.style.background = 'rgba(239,246,255,0.9)';
                 gcalBtn.style.boxShadow  = 'none';
                 gcalBtn.style.color      = '#1d4ed8';
@@ -2279,8 +2349,8 @@
                 icsBtn.parentNode.insertBefore(icsBtn, gcalBtn);
             } else {
                 // Android / desktop: Google Calendar is primary
-                gcalBtn.innerHTML = calIcon + ' Добавить в Google Calendar';
-                icsBtn.innerHTML  = dlIcon  + ' Скачать .ics (Apple / Outlook)';
+                gcalBtn.innerHTML = calIcon + ' Добавить консультацию в календарь';
+                icsBtn.innerHTML  = calIcon + ' Apple Календарь (.ics)';
             }
         }
 
@@ -2290,9 +2360,9 @@
             const fmtGCal = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
             const url = new URL('https://calendar.google.com/calendar/render');
             url.searchParams.set('action',   'TEMPLATE');
-            url.searchParams.set('text',     'Приём в клинике ReStart');
+            url.searchParams.set('text',     'Консультация в клинике ReStart');
             url.searchParams.set('dates',    `${fmtGCal(times.start)}/${fmtGCal(times.end)}`);
-            url.searchParams.set('details',  'Приём у врача в клинике спортивной медицины ReStart.\n\n🔔 Напоминание настроено за 2 часа.');
+            url.searchParams.set('details',  'Консультация у врача в клинике спортивной медицины ReStart.\n\n🔔 Напоминание настроено за 2 часа.');
             url.searchParams.set('location', 'Клиника ReStart, Алматы');
             haptic?.impactOccurred('light');
             window.open(url.toString(), '_blank');
@@ -2304,7 +2374,7 @@
             const fmtICS = d => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
             const uid    = `restart-${Date.now()}@restart.kz`;
 
-            // VALARM triggers a native calendar notification exactly 2 hours before
+            // VALARM triggers a native calendar reminder 2 hours before
             const ics = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
@@ -2316,15 +2386,14 @@
                 `DTSTAMP:${fmtICS(new Date())}`,
                 `DTSTART:${fmtICS(times.start)}`,
                 `DTEND:${fmtICS(times.end)}`,
-                'SUMMARY:Приём в клинике ReStart',
-                'DESCRIPTION:Приём у врача в клинике спортивной медицины ReStart',
+                'SUMMARY:Консультация в клинике ReStart',
+                'DESCRIPTION:Консультация у врача в клинике спортивной медицины ReStart',
                 'LOCATION:Клиника ReStart\\, Алматы',
                 'STATUS:CONFIRMED',
-                // Native calendar reminder — fires 2 hours before on iOS & Android
                 'BEGIN:VALARM',
                 'TRIGGER:-PT2H',
                 'ACTION:DISPLAY',
-                'DESCRIPTION:Напоминание: приём в клинике ReStart через 2 часа',
+                'DESCRIPTION:Напоминание: консультация в клинике ReStart через 2 часа',
                 'END:VALARM',
                 'END:VEVENT',
                 'END:VCALENDAR',
@@ -2332,14 +2401,21 @@
 
             haptic?.impactOccurred('medium');
             const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            a.href     = url;
-            a.download = 'restart-appointment.ics';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const objUrl = URL.createObjectURL(blob);
+
+            // On iOS, window.open triggers the "Add to Calendar" sheet natively
+            if (_platform() === 'ios') {
+                window.open(objUrl, '_blank');
+                setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
+            } else {
+                const a    = document.createElement('a');
+                a.href     = objUrl;
+                a.download = 'restart-consultation.ics';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+            }
         }
 
 

@@ -40,7 +40,8 @@ TOKEN        = os.getenv("BOT_TOKEN")
 URL          = os.getenv("APP_URL", "").strip("/")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-ADMIN_ID     = os.getenv("ADMIN_ID")
+ADMIN_ID          = os.getenv("ADMIN_ID")
+MAX_SLOT_CAPACITY = int(os.getenv("SLOT_CAPACITY", "3"))  # max bookings per time slot
 
 bot: Bot | None = Bot(token=TOKEN) if TOKEN else None
 dp = Dispatcher()
@@ -136,17 +137,17 @@ async def book(data: BookingData):
         except ValueError:
             pass
 
-    # ── Check slot conflict ──────────────────────────────────────────
+    # ── Check slot capacity ──────────────────────────────────────────
     if supabase:
         try:
-            conflict = (
+            existing = (
                 supabase.table("bookings")
                 .select("id")
                 .eq("date", data.date)
                 .eq("time", data.time)
                 .execute()
             )
-            if conflict.data:
+            if len(existing.data or []) >= MAX_SLOT_CAPACITY:
                 return JSONResponse(
                     {"status": "error", "message": "Это время уже занято. Пожалуйста, выберите другой слот."},
                     status_code=409
@@ -222,17 +223,33 @@ async def book(data: BookingData):
 # ── Slots API ─────────────────────────────────────────────────────
 
 @app.get("/api/available_slots")
-async def available_slots(date: str):
-    """Returns taken time slots for a given date string (same format as stored in bookings.date)."""
+async def available_slots(date: str, user_id: Optional[int] = None):
+    """Returns slot availability for a given date with counts, capacity, and user's booking."""
+    empty = {"taken": [], "counts": {}, "capacity": MAX_SLOT_CAPACITY, "user_booked": None}
     if not supabase:
-        return JSONResponse({"taken": []})
+        return JSONResponse(empty)
     try:
-        result = supabase.table("bookings").select("time").eq("date", date).execute()
-        taken = list({row["time"] for row in result.data or []})
-        return JSONResponse({"taken": taken})
+        result = supabase.table("bookings").select("time, user_id").eq("date", date).execute()
+        rows = result.data or []
+
+        counts: dict[str, int] = {}
+        user_booked: str | None = None
+        for row in rows:
+            t = row["time"]
+            counts[t] = counts.get(t, 0) + 1
+            if user_id and row.get("user_id") == user_id:
+                user_booked = t
+
+        taken = [t for t, c in counts.items() if c >= MAX_SLOT_CAPACITY]
+        return JSONResponse({
+            "taken": taken,
+            "counts": counts,
+            "capacity": MAX_SLOT_CAPACITY,
+            "user_booked": user_booked,
+        })
     except Exception as e:
         logger.error(f"available_slots error: {e}")
-        return JSONResponse({"taken": []})
+        return JSONResponse(empty)
 
 
 # ── Services API ──────────────────────────────────────────────────────────────
